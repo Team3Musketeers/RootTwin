@@ -1,0 +1,65 @@
+# Data infrastructure for the 3D factory digital twin (task T04 - Person B)
+# Start everything:   docker compose up -d
+# Stop:               docker compose down        (add -v to also delete the data)
+
+name: factory-twin
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.0.20
+    container_name: twin-mosquitto
+    ports:
+      - "${MQTT_PORT:-1883}:1883"     # MQTT (simulation, ingestor, enterprise connectors)
+      - "${MQTT_WS_PORT:-9001}:9001"  # MQTT over WebSocket (browser / 3D frontend if needed)
+    volumes:
+      - ./infra/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-h", "localhost", "-t", "$$SYS/broker/uptime", "-C", "1", "-W", "3"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  timescaledb:
+    image: timescale/timescaledb:2.17.2-pg16
+    container_name: twin-timescaledb
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-twin}
+      POSTGRES_USER: ${POSTGRES_USER:-twin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-twin_dev_password}
+    volumes:
+      - ./infra/timescaledb/init:/docker-entrypoint-initdb.d:ro
+      - timescale-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  ingestor:
+    build: ./services/ingestor
+    container_name: twin-ingestor
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      MQTT_TOPIC: "factory/#"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-twin}:${POSTGRES_PASSWORD:-twin_dev_password}@timescaledb:5432/${POSTGRES_DB:-twin}
+      FLUSH_INTERVAL_S: "1.0"
+      BATCH_SIZE: "500"
+      LOG_LEVEL: INFO
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  mosquitto-data:
+  mosquitto-log:
+  timescale-data:

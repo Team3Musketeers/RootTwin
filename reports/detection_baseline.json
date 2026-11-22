@@ -1,0 +1,288 @@
+{
+  "protocol": {
+    "target_recall": 0.9,
+    "seed": 0,
+    "fit": "normal samples of train split",
+    "threshold": "validation split"
+  },
+  "ai4i": {
+    "zscore": {
+      "at_recall_0.9": {
+        "threshold": 1.5908103485225797,
+        "precision": 0.07672301690507152,
+        "recall": 0.8676470588235294,
+        "f1": 0.14097968936678615,
+        "roc_auc": 0.8365492936304957,
+        "pr_auc": 0.17972939463520443,
+        "positives": 68,
+        "n": 2000,
+        "tp": 59,
+        "fp": 710,
+        "fn": 9,
+        "tn": 1222,
+        "false_alarm_rate": 0.36749482401656314,
+        "false_alarms_per_day": 529.1925465838509
+      },
+      "at_best_f1": {
+        "threshold": 2.888001707993561,
+        "precision": 0.3333333333333333,
+        "recall": 0.23529411764705882,
+        "f1": 0.27586206896551724,
+        "roc_auc": 0.8365492936304957,
+        "pr_auc": 0.17972939463520443,
+        "positives": 68,
+        "n": 2000,
+        "tp": 16,
+        "fp": 32,
+        "fn": 52,
+        "tn": 1900,
+        "false_alarm_rate": 0.016563146997929608,
+        "false_alarms_per_day": 23.850931677018636
+      },
+      "recall_by_failure_mode": {
+        "TWF": 0.625,
+        "HDF": 0.875,
+        "PWF": 1.0,
+        "OSF": 0.905,
+        "RNF": 0.0
+      }
+    },
+    "iforest": {
+      "at_recall_0.9": {
+        "threshold": 0.45832233023499647,
+        "precision": 0.06423777564717162,
+        "recall": 0.9852941176470589,
+        "f1": 0.12061206120612061,
+        "roc_auc": 0.8678982462550238,
+        "pr_auc": 0.18552207417481686,
+        "positives": 68,
+        "n": 2000,
+        "tp": 67,
+        "fp": 976,
+        "fn": 1,
+        "tn": 956,
+        "false_alarm_rate": 0.505175983436853,
+        "false_alarms_per_day": 727.4534161490683
+      },
+      "at_best_f1": {
+        "threshold": 0.565062335979956,
+        "precision": 0.20192307692307693,
+        "recall": 0.3088235294117647,
+        "f1": 0.2441860465116279,
+        "roc_auc": 0.8678982462550238,
+        "pr_auc": 0.18552207417481686,
+        "positives": 68,
+        "n": 2000,
+        "tp": 21,
+        "fp": 83,
+        "fn": 47,
+        "tn": 1849,
+        "false_alarm_rate": 0.04296066252587992,
+        "false_alarms_per_day": 61.86335403726709
+      },
+      "recall_by_failure_mode": {
+        "TWF": 1.0,
+        "HDF": 0.958,
+        "PWF": 1.0,
+        "OSF": 1.0,
+        "RNF": 0.25
+      }
+    }
+  },
+  "cwru": {
+    "zscore": {
+      "at_recall_0.9": {
+        "threshold": 30.516262023624748,
+        "precision": 1.0,
+        "recall": 0.9444444444444444,
+        "f1": 0.9714285714285714,
+        "roc_auc": 1.0,
+        "pr_auc": 1.0,
+        "positives": 36,
+        "n": 60,
+        "tp": 34,
+        "fp": 0,
+        "fn": 2,
+        "tn": 24,
+        "false_alarm_rate": 0.0
+      },
+      "at_best_f1": {
+        "threshold": 27.439700907151373,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "roc_auc": 1.0,
+        "pr_auc": 1.0,
+        "positives": 36,
+        "n": 60,
+        "tp": 36,
+        "fp": 0,
+        "fn": 0,
+        "tn": 24,
+        "false_alarm_rate": 0.0
+      }
+    },
+    "iforest": {
+      "at_recall_0.9": {
+        "threshold": 0.6750362914376214,
+        "precision": 1.0,
+        "recall": 0.9444444444444444,
+        "f1": 0.9714285714285714,
+        "roc_auc": 1.0,
+        "pr_auc": 1.0,
+        "positives": 36,
+        "n": 60,
+        "tp": 34,
+        "fp": 0,
+        "fn": 2,
+        "tn": 24,
+        "false_alarm_rate": 0.0
+      },
+      "at_best_f1": {
+        "threshold": 0.6634299829123834,
+        "precision": 1.0,
+        "recall": 0.9722222222222222,
+        "f1": 0.9859154929577465,
+        "roc_auc": 1.0,
+        "pr_auc": 1.0,
+        "positives": 36,
+        "n": 60,
+        "tp": 35,
+        "fp": 0,
+        "fn": 1,
+        "tn": 24,
+        "false_alarm_rate": 0.0
+      }
+    }
+  },
+  "sim": {
+    "zscore": {
+      "at_recall_0.9": {
+        "threshold": 1.2888165683874258,
+        "precision": 0.23866004962779155,
+        "recall": 0.8126056100033795,
+        "f1": 0.36895810955961333,
+        "roc_auc": 0.9025960406033626,
+        "pr_auc": 0.7130398883342468,
+        "positives": 11836,
+        "n": 115200,
+        "tp": 9618,
+        "fp": 30682,
+        "fn": 2218,
+        "tn": 72682,
+        "false_alarm_rate": 0.29683448782941835,
+        "false_alarms_per_day": 427.44166247436243
+      },
+      "at_best_f1": {
+        "threshold": 2.5670330354739677,
+        "precision": 0.9459969788519638,
+        "recall": 0.6349273403176748,
+        "f1": 0.7598584428715874,
+        "roc_auc": 0.9025960406033626,
+        "pr_auc": 0.7130398883342468,
+        "positives": 11836,
+        "n": 115200,
+        "tp": 7515,
+        "fp": 429,
+        "fn": 4321,
+        "tn": 102935,
+        "false_alarm_rate": 0.004150381177199024,
+        "false_alarms_per_day": 5.976548895166595
+      },
+      "lead_time_min": {
+        "median": 39.0,
+        "p10": 20.0,
+        "caught_before_down": 32,
+        "missed_or_late": 0
+      },
+      "event_level": {
+        "threshold": 2.233457587749938,
+        "persist_min": 5,
+        "fault_episodes": 60,
+        "episode_detection_rate": 0.8166666666666667,
+        "stopping_faults": 33,
+        "warned_before_down_rate": 0.9696969696969697,
+        "lead_time_min_median": 31.0,
+        "lead_time_min_p10": 16.0,
+        "false_alarms_per_machine_day": 1.1702333501025504,
+        "by_fault": {
+          "BEARING_WEAR": 1.0,
+          "BELT_SLIP": 1.0,
+          "CONVEYOR_JAM": 1.0,
+          "COOLING_FAILURE": 1.0,
+          "MISALIGNMENT": 1.0,
+          "MOTOR_OVERCURRENT": 1.0,
+          "OVERHEATING": 1.0,
+          "PHASE_IMBALANCE": 1.0,
+          "SENSOR_DRIFT": 1.0,
+          "SENSOR_STUCK": 0.0,
+          "TOOL_WEAR": 1.0
+        }
+      }
+    },
+    "iforest": {
+      "at_recall_0.9": {
+        "threshold": 0.4656971666022697,
+        "precision": 0.44928925757638916,
+        "recall": 0.9106116931395741,
+        "f1": 0.6017027215631542,
+        "roc_auc": 0.9438200351137384,
+        "pr_auc": 0.6930133299944395,
+        "positives": 11836,
+        "n": 115200,
+        "tp": 10778,
+        "fp": 13211,
+        "fn": 1058,
+        "tn": 90153,
+        "false_alarm_rate": 0.12781045625169304,
+        "false_alarms_per_day": 184.04705700243798
+      },
+      "at_best_f1": {
+        "threshold": 0.5110304197257988,
+        "precision": 0.7840794909009713,
+        "recall": 0.5933592429874958,
+        "f1": 0.6755157985860626,
+        "roc_auc": 0.9438200351137384,
+        "pr_auc": 0.6930133299944395,
+        "positives": 11836,
+        "n": 115200,
+        "tp": 7023,
+        "fp": 1934,
+        "fn": 4813,
+        "tn": 101430,
+        "false_alarm_rate": 0.018710576216090707,
+        "false_alarms_per_day": 26.94322975117062
+      },
+      "lead_time_min": {
+        "median": 35.5,
+        "p10": 20.0,
+        "caught_before_down": 32,
+        "missed_or_late": 0
+      },
+      "event_level": {
+        "threshold": 0.5182110280634195,
+        "persist_min": 5,
+        "fault_episodes": 60,
+        "episode_detection_rate": 0.9666666666666667,
+        "stopping_faults": 33,
+        "warned_before_down_rate": 0.9696969696969697,
+        "lead_time_min_median": 29.0,
+        "lead_time_min_p10": 14.1,
+        "false_alarms_per_machine_day": 0.9751944584187919,
+        "by_fault": {
+          "BEARING_WEAR": 1.0,
+          "BELT_SLIP": 1.0,
+          "CONVEYOR_JAM": 1.0,
+          "COOLING_FAILURE": 1.0,
+          "MISALIGNMENT": 1.0,
+          "MOTOR_OVERCURRENT": 1.0,
+          "OVERHEATING": 1.0,
+          "PHASE_IMBALANCE": 1.0,
+          "SENSOR_DRIFT": 0.83,
+          "SENSOR_STUCK": 0.91,
+          "TOOL_WEAR": 1.0
+        }
+      }
+    }
+  }
+}

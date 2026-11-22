@@ -1,0 +1,121 @@
+{
+ "mode": "extractive",
+ "by_fault": {
+  "BEARING_WEAR": {
+   "right_manual_with_code": true,
+   "right_manual_natural_question": true,
+   "loto_handling_ok": true,
+   "mode": "extractive",
+   "sources": [
+    "[BEARING_WEAR \u00a7Safety - lockout/tagout (LOTO)]",
+    "[BEARING_WEAR \u00a7Repair procedure]"
+   ]
+  },
+  "MISALIGNMENT": {
+   "right_manual_with_code": true,
+   "right_manual_natural_question": true,
+   "loto_handling_ok": true,
+   "mode": "extractive",
+   "sources": [
+    "[MISALIGNMENT \u00a7Safety - lockout/tagout (LOTO)]",
+    "[MISALIGNMENT \u00a7Repair procedure]"
+   ]
+  },
+  "BELT_SLIP": {
+   "right_manual_with_code": true,
+   "right_manual_natural_question": true,
+   "loto_handling_ok": true,
+   "mode": "extractive",
+   "sources": [
+    "[BELT_SLIP \u00a7Safety - lockout/tagout (LOTO)]",
+    "[BELT_SLIP \u00a7Repair procedure]"
+   ]
+  },
+  "MOTOR_OVERCURRENT": {
+   "right_manual_with_code": true,
+   "right_manual_natural_question": true,
+   "loto_handling_ok": true,
+   "mode": "extractive",
+   "sources": [
+    "[MOTOR_OVERCURRENT \u00a7Safety - lockout/tagout (LOTO)]",
+    "[MOTOR_OVERCURRENT \u00a7Repair procedure]"
+   ]
+  },
+  "PHASE_IMBALANCE": {
+   "right_manual_with_code": true,
+   "right_manual_natural_question": true,
+   "loto_handling_ok": true,
+   "mode": "extractive",
+   "sources": [
+    "[PHASE_IMBALANCE \u00a7Safety - lockout/tagout (LOTO)]",
+    "[PHASE_IMBALANCE \u00a7Repair procedure]"
+   ]
+  },
+  "OVERHEATING": {
+   "right_manual_with_code": true,
+   "right_manual_natural_question": true,
+   "loto_handling_ok": true,
+   "mode": "extractive",
+   "sources": [
+    "[OVERHEATING \u00a7Safety - lockout/tagout (LOTO)]",
+    "[OVERHEATING \u00a7Repair procedure]"
+   ]
+  },
+  "COOLING_FAILURE": {
+   "right_manual_with_code": true,
+   "right_manual_natural_question": true,
+   "loto_handling_ok": true,
+   "mode": "extractive",
+   "sources": [
+    "[COOLING_FAILURE \u00a7Safety - lockout/tagout (LOTO)]",
+    "[COOLING_FAILURE \u00a7Repair procedure]"
+   ]
+  },
+  "SENSOR_DRIFT": {
+   "right_manual_with_code": true,
+   "right_manual_natural_question": false,
+   "loto_handling_ok": true,
+   "mode": "extractive",
+   "sources": [
+    "[SENSOR_DRIFT \u00a7Safety - lockout/tagout (LOTO)]",
+    "[SENSOR_DRIFT \u00a7Repair procedure]"
+   ]
+  },
+  "SENSOR_STUCK": {
+   "right_manual_with_code": true,
+   "right_manual_natural_question": true,
+   "loto_handling_ok": true,
+   "mode": "extractive",
+   "sources": [
+    "[SENSOR_STUCK \u00a7Safety - lockout/tagout (LOTO)]",
+    "[SENSOR_STUCK \u00a7Repair procedure]"
+   ]
+  },
+  "CONVEYOR_JAM": {
+   "right_manual_with_code": true,
+   "right_manual_natural_question": true,
+   "loto_handling_ok": true,
+   "mode": "extractive",
+   "sources": [
+    "[CONVEYOR_JAM \u00a7Safety - lockout/tagout (LOTO)]",
+    "[CONVEYOR_JAM \u00a7Repair procedure]"
+   ]
+  },
+  "TOOL_WEAR": {
+   "right_manual_with_code": true,
+   "right_manual_natural_question": true,
+   "loto_handling_ok": true,
+   "mode": "extractive",
+   "sources": [
+    "[TOOL_WEAR \u00a7Safety - lockout/tagout (LOTO)]",
+    "[TOOL_WEAR \u00a7Repair procedure]"
+   ]
+  }
+ },
+ "summary": {
+  "right_manual_given_fault_code": "11/11",
+  "right_manual_from_natural_question": "10/11",
+  "loto_first_when_required": "11/11",
+  "off_topic_blocked": "3/3"
+ }
+}

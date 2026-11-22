@@ -1,0 +1,75 @@
+{
+  "protocol": {
+    "seed": 0,
+    "persist_min": 5,
+    "seq_len_min": 30
+  },
+  "cwru": {
+    "autoencoder": {
+      "threshold": 665.0651245117188,
+      "precision": 1.0,
+      "recall": 0.9232954545454546,
+      "f1": 0.9601181683899557,
+      "roc_auc": 1.0,
+      "pr_auc": 1.0000000000000002,
+      "positives": 352,
+      "n": 447,
+      "tp": 325,
+      "fp": 0,
+      "fn": 27,
+      "tn": 95,
+      "false_alarm_rate": 0.0,
+      "alarm_rate_by_class": {
+        "ball": 0.755,
+        "inner_race": 1.0,
+        "normal": 0.0,
+        "outer_race": 1.0
+      },
+      "epochs": 69
+    }
+  },
+  "sim": {
+    "autoencoder": {
+      "point_wise": {
+        "threshold": 0.5482904314994812,
+        "precision": 0.09797326249035906,
+        "recall": 0.7741007194244605,
+        "f1": 0.17393288769290746,
+        "roc_auc": 0.6816733842135216,
+        "pr_auc": 0.4520913839302256,
+        "positives": 11815,
+        "n": 108240,
+        "tp": 9146,
+        "fp": 84206,
+        "fn": 2669,
+        "tn": 12219,
+        "false_alarm_rate": 0.8732797511018927,
+        "false_alarms_per_day": 1257.5228415867255
+      },
+      "event_level": {
+        "threshold": 0.8778094184512891,
+        "persist_min": 5,
+        "fault_episodes": 60,
+        "episode_detection_rate": 0.8333333333333334,
+        "stopping_faults": 33,
+        "warned_before_down_rate": 0.9696969696969697,
+        "lead_time_min_median": 30.5,
+        "lead_time_min_p10": 16.0,
+        "false_alarms_per_machine_day": 1.0155042779362198,
+        "by_fault": {
+          "BEARING_WEAR": 1.0,
+          "BELT_SLIP": 1.0,
+          "CONVEYOR_JAM": 1.0,
+          "COOLING_FAILURE": 1.0,
+          "MISALIGNMENT": 1.0,
+          "MOTOR_OVERCURRENT": 1.0,
+          "OVERHEATING": 1.0,
+          "PHASE_IMBALANCE": 1.0,
+          "SENSOR_DRIFT": 1.0,
+          "SENSOR_STUCK": 0.09,
+          "TOOL_WEAR": 1.0
+        }
+      }
+    }
+  }
+}

@@ -18,10 +18,15 @@ dependencies = [
     "numpy>=1.26",
     "scipy>=1.11",
     "pyarrow>=15",
+    "scikit-learn>=1.5",
+    "joblib>=1.4",
+    "matplotlib>=3.8",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "httpx>=0.27", "jupyter", "matplotlib", "seaborn", "nbconvert", "nbformat"]
+ml = ["torch>=2.4", "shap>=0.46"]      # T16/T20 deep models, T22 SHAP (CPU torch: --index-url https://download.pytorch.org/whl/cpu)
+llm = ["anthropic>=2.12"]               # T24 copilot LLM mode (offline extractive mode needs nothing)
+dev = ["pytest>=8", "httpx>=0.27", "jupyter", "seaborn", "nbconvert", "nbformat"]
 
 [tool.setuptools.packages.find]
 include = ["roottwin*"]

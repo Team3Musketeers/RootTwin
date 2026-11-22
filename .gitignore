@@ -19,7 +19,8 @@ data/scenarios/
 
 # Models / experiments
 mlruns/
-models/*.pt
+# trained weights are rebuilt by scripts/train_*.py; metrics live in reports/
+models/
 
 # OS / IDE
 .DS_Store

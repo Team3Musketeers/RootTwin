@@ -44,7 +44,45 @@ Planning: [docs/Planning_Projet_IA_Usine_3D_v2.xlsx](docs/Planning_Projet_IA_Usi
 | **T09** Fault injection | Catalogue of **11 faults in 5 families** (sensor signature, onset, time to failure, repair skill/time/cost, LOTO); `ActiveFault` the simulation can call; reproducible YAML scenarios + generator (200 scenarios / 310 faults from one seed) + real-time runner | [roottwin/faults/](roottwin/faults/), [scenarios/](scenarios/), [scripts/run_scenario.py](scripts/run_scenario.py) |
 | Stand-in line | Fake 6-machine line that obeys commands and applies catalogue faults (lets C build the 3D before A's simulation is done; shows A how to integrate faults) | [scripts/publish_fake_data.py](scripts/publish_fake_data.py) |
 | Ingestor hardening | Rows of a failed DB write are retried (tested: DB restarted mid-stream, 480/480 rows kept); `LINE` target never registered as a machine | [services/ingestor/ingestor.py](services/ingestor/ingestor.py) |
-| Tests | 41 unit tests (contracts, commands, API, faults, scenarios) | [tests/](tests/) |
+| Tests | 41 unit tests at that point (contracts, commands, API, faults, scenarios) | [tests/](tests/) |
+
+### Done ahead of schedule (planned J6–J13, own tasks that need nobody else)
+| Task | Deliverable | Where |
+|---|---|---|
+| **T13** Baseline detectors | z-score thresholds + Isolation Forest, fitted on normal data only; point-wise and **event-level** evaluation (5-min persistence, threshold for ≤ 1 false alarm per machine-day, lead time before the stop) on AI4I, CWRU and 200 simulated scenarios | [roottwin/detection/](roottwin/detection/), [scripts/train_detector.py](scripts/train_detector.py), [reports/detection_baseline.json](reports/detection_baseline.json) |
+| Offline scenario simulator | Labelled telemetry from fault scenarios (stand-in for dataset v1 until A's T12) | [roottwin/faults/offline.py](roottwin/faults/offline.py) |
+| **T16** Autoencoder | PyTorch dense autoencoder: spectrum view (CWRU) and 30-min sequence view (simulation); ROC/PR curves vs Isolation Forest | [roottwin/detection/autoencoder.py](roottwin/detection/autoencoder.py), [scripts/train_autoencoder.py](scripts/train_autoencoder.py) |
+| **T20** LSTM / TCN | Remaining useful life on C-MAPSS FD001 + fault-type classification (11 faults + healthy) on simulated windows | [roottwin/detection/temporal.py](roottwin/detection/temporal.py), [scripts/train_temporal.py](scripts/train_temporal.py) |
+| **T22** SHAP explanations | Per-alert text: sensors driving the anomaly (SHAP), deviation from normal, candidate faults (signature match re-ranked by the T20 classifier); accuracy of the explanations measured | [roottwin/detection/explain.py](roottwin/detection/explain.py), [scripts/explain_alerts.py](scripts/explain_alerts.py) |
+| **T24** Copilot + RAG | 11 fictional repair manuals (symptoms, diagnosis, LOTO, procedure, restart, parts); BM25 retrieval; Claude Opus 5.5 answers with mandatory citations, or offline extractive mode; guardrail "no source, no answer" | [docs/manuals/](docs/manuals/), [roottwin/copilot.py](roottwin/copilot.py), [scripts/eval_copilot.py](scripts/eval_copilot.py) |
+| **T29** Business model (draft) | 3 offers, measured claims vs claims still to measure, competition, jury Q&A, pitch outline — prices left as placeholders | [docs/BUSINESS_MODEL.md](docs/BUSINESS_MODEL.md) |
+| Tests | 53 unit tests | [tests/](tests/) |
+
+### Model results (test splits never used for training or thresholds)
+**Detection on the simulated line** (40 test scenarios, threshold set on validation for ≤ 1 false alarm per machine-day):
+
+| Detector | Fault episodes caught | Stopping faults warned **before** the stop | Median lead time | False alarms / machine-day |
+|---|---|---|---|---|
+| z-score thresholds | 82 % | 97 % | 31 min | 1.17 |
+| **Isolation Forest** (kept) | **97 %** | **97 %** | **29 min** | **0.98** |
+| Autoencoder | 83 % | 97 % | 30.5 min | 1.02 |
+
+Blind spots: z-score and autoencoder miss SENSOR_STUCK (a frozen signal looks "too normal"); a jam is sudden, so it cannot be warned before the stop. → **KPI "recall ≥ 0.9 with ≤ 1 false alarm/day" met by Isolation Forest.**
+
+| Other results | Value | Baseline |
+|---|---|---|
+| CWRU bearings (autoencoder, spectrum) | ROC-AUC 1.00, F1 0.96 (ball faults: 75 % caught at the chosen threshold) | — |
+| AI4I (unsupervised, best F1) | Isolation Forest ROC-AUC 0.87 but F1 only 0.24 | expected: failures here are not all "unusual" points; a supervised model is the next step |
+| **RUL C-MAPSS FD001** (100 test engines) | **LSTM RMSE 13.5 cycles**, TCN 14.2 (NASA score 293 / 317) | predict-the-mean 40.5 |
+| Fault type (simulation, 12 classes) | TCN macro-F1 0.92, LSTM 0.89 — faults ≈ 1.0 except SENSOR_STUCK (0.5–0.67) | majority class 0.03 |
+| SHAP explanations (157 alerts on real faults) | top sensor in the fault's signature 93 %; true fault top-1 **78 %**, top-3 91 % | signature only: top-1 41 % |
+| Copilot (offline mode) | right manual 11/11 with fault code, 10/11 from a free-text question; LOTO first 11/11; off-topic blocked 3/3 | — |
+
+Figures in [reports/figures/](reports/figures/): ROC/PR curves, an alarm-before-stop example, RUL predictions, confusion matrix, SHAP summary.
+
+Copilot with Claude: set `ANTHROPIC_API_KEY` (or log in with `ant auth login`), `pip install -e ".[llm]"`, then
+`python scripts/eval_copilot.py --ask "M3 vibration keeps rising, what do I do?" --fault BEARING_WEAR`.
+It uses `claude-opus-5-5` with server-side refusal fallback; every call is billed, so it was **not run** here (no key on this machine) — the offline mode was.
 
 ### Key numbers from the EDA
 | Dataset | Finding | Consequence |
@@ -61,11 +99,20 @@ Prerequisites: Docker Desktop (running), Python 3.11+.
 copy .env.example .env                          # optional, defaults work
 docker compose up -d --build                    # broker + DB + ingestor + command API
 pip install -e ".[dev]"                         # roottwin package + notebook/test tools
-python -m pytest -q                             # 41 tests
+python -m pytest -q                             # 53 tests
 
 python scripts/download_datasets.py             # ~23 MB into data/raw (git-ignored)
 python scripts/load_datasets.py                 # clean + load into TimescaleDB + data/processed
+
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install -e ".[ml]"
+python scripts/train_detector.py                # T13, ~1 min (creates data/processed/sim_v0.parquet)
+python scripts/train_autoencoder.py             # T16, ~3 min
+python scripts/train_temporal.py                # T20, ~20 min on CPU
+python scripts/explain_alerts.py                # T22
+python scripts/eval_copilot.py                  # T24 (offline)
 ```
+Trained weights go to `models/` (git-ignored, rebuilt by the scripts); metrics and figures to `reports/` (committed).
 
 Run the stand-in line and drive it (two terminals):
 ```powershell
@@ -92,6 +139,9 @@ roottwin/                    shared Python package
   mqtt.py                    publisher helper
   faults/                    fault catalogue (YAML), ActiveFault, scenarios, runner
   datasets/                  AI4I, C-MAPSS, CWRU loaders
+  detection/                 metrics, event-level evaluation, Isolation Forest, autoencoder, LSTM/TCN, SHAP
+  copilot.py                 RAG copilot over docs/manuals (Claude or offline)
+reports/                     metrics (JSON) and figures of every model
 services/                    Dockerfiles: ingestor, command_api
 scenarios/                   hand-written fault scenarios (demo, cascade, false alarm)
 scripts/                     download/load datasets, run scenarios, stand-in line, DB check
@@ -116,15 +166,15 @@ tests/                       unit tests
 ### Person B
 | Day | Task | To do |
 |---|---|---|
-| J5 | T10 teach-back | 20-min walkthrough of data pipeline, commands, faults; J1 milestone demo with the stand-in line |
-| J6–J7 | **T13** Isolation Forest baseline | On AI4I (+ CWRU features): precision / recall / F1, false alarms/day, threshold for recall ≥ 0.9; log runs |
-| J6–J7 (pair) | T11 control panel (with C) | Wire buttons to `/command`, fault dropdown from `/command/faults` |
-| J7–J8 (pair) | T14 calibration (with A) | Fit fault ramp shapes in `catalog.yaml` to C-MAPSS degradation curves |
-| J8–J10 | **T16** PyTorch autoencoder | Train on `cwru_windows.npz` normal windows; ROC/PR; then on simulated telemetry |
-| J9–J11 | **T24** LLM copilot + RAG | Repair manuals per fault code (incl. LOTO), cite sources, refuse without source |
-| J10–J12 | **T20** LSTM/TCN | Fault type + RUL; beat RMSE 41.5 on C-MAPSS FD001 |
-| J11 | **T22** SHAP | Explanation for every alert |
-| J12–J13 | **T28** benchmark, **T30** tests, **T29** business model | 100 scenarios from the generator, same seeds for every strategy |
+| J5 | T10 teach-back | 20-min walkthrough of data pipeline, commands, faults, detectors; J1 milestone demo with the stand-in line |
+| J6–J9 (pair) | T11, T14, T15, T17, T18 | Control panel ↔ `/command`; calibrate `catalog.yaml` ramps on C-MAPSS curves; plug the propagation path (T15) into `explain(..., propagation_path=...)`; RL env + baselines for T28 |
+| When A's simulation exists | Retrain on real sim data | Re-run `train_detector.py` / `train_temporal.py` on dataset v1 (T12) instead of `faults/offline.py` |
+| J8–J10 | **Live detector service** | Subscribe to telemetry, score with Isolation Forest, publish `alarm` events with the SHAP text, so alerts appear in the 3D view (J10 milestone) |
+| J9–J11 | T24 with Claude | Get an API key for the team, run the copilot in LLM mode on the 11 faults, compare to extractive mode; expose it in the API |
+| Improvements | T16 / T20 / AI4I | Train the fault classifier on early windows too (BEARING_WEAR top-1 at first alarm is weak); add a rolling-std feature for SENSOR_STUCK to the autoencoder; supervised model on AI4I |
+| J12 | **T30** tests | Feature freeze, end-to-end tests |
+| J12–J13 | **T28** benchmark | Corrective / preventive / condition-based / OR-Tools / PPO on 100 generated scenarios (needs C's T18/T21) |
+| J13 | **T29** final | Review the draft with A and C, verify competitor facts, insert T28 numbers |
 
 ### Infra improvements (when needed)
 - Security before any real machine: `allow_anonymous false` + password file + TLS on Mosquitto; real DB password via `.env`.
@@ -143,6 +193,8 @@ tests/                       unit tests
 - *Designing Machine Learning Systems* and *AI Engineering* — Chip Huyen (MLOps, LLM apps, RAG evaluation).
 - *Docker Deep Dive* — Nigel Poulton.
 - New for days 3–6: *Python for Data Analysis* (3rd ed.) — Wes McKinney (pandas, free online: wesmckinney.com/book); *Vibration-based Condition Monitoring* — Robert B. Randall (bearing fault signatures, for CWRU).
+
+- New for the ML work: *Practical Deep Learning for Coders* (fast.ai, free course + book); *Anomaly Detection Principles and Algorithms* — Mehrotra, Mohan, Huang; *Time Series Forecasting in Python* — Marco Peixeiro.
 
 ### YouTube
 - **TechWorld with Nana** — Docker & Docker Compose.
@@ -167,6 +219,8 @@ tests/                       unit tests
 - Gymnasium: https://gymnasium.farama.org/ · Stable-Baselines3: https://stable-baselines3.readthedocs.io/ · OR-Tools: https://developers.google.com/optimization
 - MathWorks Predictive Maintenance Toolbox (condition indicators, RUL): https://www.mathworks.com/help/predmaint/
 - OSHA lockout/tagout (for the LOTO steps in manuals): https://www.osha.gov/control-hazardous-energy
+- Claude API (Messages, citations, refusals): https://platform.claude.com/docs · BM25 explained: https://en.wikipedia.org/wiki/Okapi_BM25
+- Isolation Forest paper: Liu, Ting, Zhou, *Isolation Forest* (ICDM 2008) · TCN: Bai, Kolter, Koltun, *An Empirical Evaluation of Generic Convolutional and Recurrent Networks for Sequence Modeling* (2018) · SHAP: Lundberg & Lee, *A Unified Approach to Interpreting Model Predictions* (NeurIPS 2017)
 
 ### Datasets
 - AI4I 2020 Predictive Maintenance Dataset — UCI ML Repository #601 (Matzka, 2020).

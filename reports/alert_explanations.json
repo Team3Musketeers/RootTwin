@@ -1,0 +1,2184 @@
+{
+ "summary": {
+  "alerts": 194,
+  "alerts_on_real_faults": 157,
+  "top_sensor_in_fault_signature": 0.93,
+  "true_fault_top1": 0.777,
+  "true_fault_top3": 0.911,
+  "top1_by_fault": {
+   "BEARING_WEAR": 0.09,
+   "BELT_SLIP": 1.0,
+   "CONVEYOR_JAM": 1.0,
+   "COOLING_FAILURE": 1.0,
+   "MISALIGNMENT": 0.27,
+   "MOTOR_OVERCURRENT": 0.2,
+   "OVERHEATING": 0.6,
+   "PHASE_IMBALANCE": 1.0,
+   "SENSOR_DRIFT": 0.88,
+   "SENSOR_STUCK": 1.0,
+   "TOOL_WEAR": 0.87
+  }
+ },
+ "examples": [
+  {
+   "machine_id": "M5",
+   "t_min": 216.0,
+   "score": 0.5855,
+   "contributions": {
+    "temperature": 0.718,
+    "cadence": 0.202,
+    "current": 0.08,
+    "vibration": 0.0
+   },
+   "deviations": {
+    "vibration": {
+     "value": 1.99,
+     "normal": 2.0,
+     "ratio": 0.99,
+     "direction": "normal"
+    },
+    "temperature": {
+     "value": 55.47,
+     "normal": 44.96,
+     "ratio": 1.23,
+     "direction": "up+noisy"
+    },
+    "current": {
+     "value": 12.48,
+     "normal": 12.02,
+     "ratio": 1.04,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 28.72,
+     "normal": 29.93,
+     "ratio": 0.96,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "COOLING_FAILURE",
+     "match": 0.47
+    },
+    {
+     "fault_code": "OVERHEATING",
+     "match": 0.28
+    },
+    {
+     "fault_code": "SENSOR_DRIFT",
+     "match": 0.25
+    }
+   ],
+   "text": "Alert on M5: temperature is 1.23x its normal level (55.47 vs 44.96 \u00b0C) \u2014 72% of the anomaly; cadence pattern is unusual \u2014 20% of the anomaly. Most consistent with COOLING_FAILURE (47% likelihood), OVERHEATING (28% likelihood), SENSOR_DRIFT (25% likelihood).",
+   "scenario_id": "GEN-42-0012",
+   "true_fault": "COOLING_FAILURE"
+  },
+  {
+   "machine_id": "M6",
+   "t_min": 4.0,
+   "score": 0.5582,
+   "contributions": {
+    "temperature": 0.335,
+    "cadence": 0.322,
+    "current": 0.258,
+    "vibration": 0.085
+   },
+   "deviations": {
+    "vibration": {
+     "value": 2.0,
+     "normal": 2.0,
+     "ratio": 1.0,
+     "direction": "normal"
+    },
+    "temperature": {
+     "value": 44.47,
+     "normal": 44.96,
+     "ratio": 0.99,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 12.52,
+     "normal": 12.02,
+     "ratio": 1.04,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 28.25,
+     "normal": 29.93,
+     "ratio": 0.94,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.8
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.16
+    },
+    {
+     "fault_code": "BELT_SLIP",
+     "match": 0.04
+    }
+   ],
+   "text": "Alert on M6: temperature pattern is unusual \u2014 34% of the anomaly; cadence pattern is unusual \u2014 32% of the anomaly; current pattern is unusual \u2014 26% of the anomaly. Most consistent with SENSOR_STUCK (80% likelihood), PHASE_IMBALANCE (16% likelihood), BELT_SLIP (4% likelihood).",
+   "scenario_id": "GEN-42-0012",
+   "true_fault": null
+  },
+  {
+   "machine_id": "M2",
+   "t_min": 4.0,
+   "score": 0.5236,
+   "contributions": {
+    "current": 0.376,
+    "vibration": 0.369,
+    "temperature": 0.255,
+    "cadence": 0.0
+   },
+   "deviations": {
+    "vibration": {
+     "value": 1.88,
+     "normal": 2.0,
+     "ratio": 0.94,
+     "direction": "normal"
+    },
+    "temperature": {
+     "value": 47.08,
+     "normal": 44.96,
+     "ratio": 1.05,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 11.45,
+     "normal": 12.02,
+     "ratio": 0.95,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 29.45,
+     "normal": 29.93,
+     "ratio": 0.98,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.96
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.02
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.02
+    }
+   ],
+   "text": "Alert on M2: current pattern is unusual \u2014 38% of the anomaly; vibration pattern is unusual \u2014 37% of the anomaly; temperature pattern is unusual \u2014 26% of the anomaly. Most consistent with SENSOR_STUCK (96% likelihood), CONVEYOR_JAM (2% likelihood), PHASE_IMBALANCE (2% likelihood).",
+   "scenario_id": "GEN-42-0014",
+   "true_fault": null
+  },
+  {
+   "machine_id": "M2",
+   "t_min": 83.0,
+   "score": 0.5463,
+   "contributions": {
+    "vibration": 0.591,
+    "temperature": 0.297,
+    "current": 0.112,
+    "cadence": 0.0
+   },
+   "deviations": {
+    "vibration": {
+     "value": 1.91,
+     "normal": 2.0,
+     "ratio": 0.95,
+     "direction": "normal"
+    },
+    "temperature": {
+     "value": 47.21,
+     "normal": 44.96,
+     "ratio": 1.05,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 11.57,
+     "normal": 12.02,
+     "ratio": 0.96,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 29.56,
+     "normal": 29.93,
+     "ratio": 0.99,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.96
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.02
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.02
+    }
+   ],
+   "text": "Alert on M2: vibration pattern is unusual \u2014 59% of the anomaly; temperature pattern is unusual \u2014 30% of the anomaly; current pattern is unusual \u2014 11% of the anomaly. Most consistent with SENSOR_STUCK (96% likelihood), CONVEYOR_JAM (2% likelihood), PHASE_IMBALANCE (2% likelihood).",
+   "scenario_id": "GEN-42-0014",
+   "true_fault": null
+  },
+  {
+   "machine_id": "M2",
+   "t_min": 155.0,
+   "score": 0.5415,
+   "contributions": {
+    "temperature": 0.408,
+    "vibration": 0.402,
+    "current": 0.181,
+    "cadence": 0.008
+   },
+   "deviations": {
+    "vibration": {
+     "value": 1.88,
+     "normal": 2.0,
+     "ratio": 0.94,
+     "direction": "normal"
+    },
+    "temperature": {
+     "value": 46.97,
+     "normal": 44.96,
+     "ratio": 1.04,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 11.5,
+     "normal": 12.02,
+     "ratio": 0.96,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 29.25,
+     "normal": 29.93,
+     "ratio": 0.98,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.96
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.02
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.02
+    }
+   ],
+   "text": "Alert on M2: temperature pattern is unusual \u2014 41% of the anomaly; vibration pattern is unusual \u2014 40% of the anomaly; current pattern is unusual \u2014 18% of the anomaly. Most consistent with SENSOR_STUCK (96% likelihood), CONVEYOR_JAM (2% likelihood), PHASE_IMBALANCE (2% likelihood).",
+   "scenario_id": "GEN-42-0014",
+   "true_fault": null
+  },
+  {
+   "machine_id": "M2",
+   "t_min": 312.0,
+   "score": 0.5279,
+   "contributions": {
+    "vibration": 0.329,
+    "cadence": 0.301,
+    "current": 0.189,
+    "temperature": 0.182
+   },
+   "deviations": {
+    "vibration": {
+     "value": 1.89,
+     "normal": 2.0,
+     "ratio": 0.94,
+     "direction": "normal"
+    },
+    "temperature": {
+     "value": 46.78,
+     "normal": 44.96,
+     "ratio": 1.04,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 11.48,
+     "normal": 12.02,
+     "ratio": 0.96,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 29.51,
+     "normal": 29.93,
+     "ratio": 0.99,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.96
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.02
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.02
+    }
+   ],
+   "text": "Alert on M2: vibration pattern is unusual \u2014 33% of the anomaly; cadence pattern is unusual \u2014 30% of the anomaly; current pattern is unusual \u2014 19% of the anomaly; temperature pattern is unusual \u2014 18% of the anomaly. Most consistent with SENSOR_STUCK (96% likelihood), CONVEYOR_JAM (2% likelihood), PHASE_IMBALANCE (2% likelihood).",
+   "scenario_id": "GEN-42-0014",
+   "true_fault": null
+  },
+  {
+   "machine_id": "M2",
+   "t_min": 348.0,
+   "score": 0.5409,
+   "contributions": {
+    "vibration": 0.504,
+    "temperature": 0.343,
+    "current": 0.153,
+    "cadence": 0.0
+   },
+   "deviations": {
+    "vibration": {
+     "value": 1.86,
+     "normal": 2.0,
+     "ratio": 0.93,
+     "direction": "normal"
+    },
+    "temperature": {
+     "value": 46.65,
+     "normal": 44.96,
+     "ratio": 1.04,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 11.55,
+     "normal": 12.02,
+     "ratio": 0.96,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 29.62,
+     "normal": 29.93,
+     "ratio": 0.99,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.96
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.02
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.02
+    }
+   ],
+   "text": "Alert on M2: vibration pattern is unusual \u2014 50% of the anomaly; temperature pattern is unusual \u2014 34% of the anomaly; current pattern is unusual \u2014 15% of the anomaly. Most consistent with SENSOR_STUCK (96% likelihood), CONVEYOR_JAM (2% likelihood), PHASE_IMBALANCE (2% likelihood).",
+   "scenario_id": "GEN-42-0014",
+   "true_fault": null
+  },
+  {
+   "machine_id": "M2",
+   "t_min": 359.0,
+   "score": 0.5199,
+   "contributions": {
+    "temperature": 0.478,
+    "vibration": 0.442,
+    "current": 0.08,
+    "cadence": 0.0
+   },
+   "deviations": {
+    "vibration": {
+     "value": 1.87,
+     "normal": 2.0,
+     "ratio": 0.93,
+     "direction": "normal"
+    },
+    "temperature": {
+     "value": 47.89,
+     "normal": 44.96,
+     "ratio": 1.07,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 11.63,
+     "normal": 12.02,
+     "ratio": 0.97,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 29.61,
+     "normal": 29.93,
+     "ratio": 0.99,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.96
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.02
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.02
+    }
+   ],
+   "text": "Alert on M2: temperature pattern is unusual \u2014 48% of the anomaly; vibration pattern is unusual \u2014 44% of the anomaly. Most consistent with SENSOR_STUCK (96% likelihood), CONVEYOR_JAM (2% likelihood), PHASE_IMBALANCE (2% likelihood).",
+   "scenario_id": "GEN-42-0014",
+   "true_fault": null
+  },
+  {
+   "machine_id": "M3",
+   "t_min": 8.0,
+   "score": 0.5213,
+   "contributions": {
+    "vibration": 0.397,
+    "temperature": 0.319,
+    "current": 0.246,
+    "cadence": 0.039
+   },
+   "deviations": {
+    "vibration": {
+     "value": 1.97,
+     "normal": 2.0,
+     "ratio": 0.98,
+     "direction": "normal"
+    },
+    "temperature": {
+     "value": 45.57,
+     "normal": 44.96,
+     "ratio": 1.01,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 12.42,
+     "normal": 12.02,
+     "ratio": 1.03,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 29.94,
+     "normal": 29.93,
+     "ratio": 1.0,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.96
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.02
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.02
+    }
+   ],
+   "text": "Alert on M3: vibration pattern is unusual \u2014 40% of the anomaly; temperature pattern is unusual \u2014 32% of the anomaly; current pattern is unusual \u2014 25% of the anomaly. Most consistent with SENSOR_STUCK (96% likelihood), CONVEYOR_JAM (2% likelihood), PHASE_IMBALANCE (2% likelihood).",
+   "scenario_id": "GEN-42-0014",
+   "true_fault": null
+  },
+  {
+   "machine_id": "M6",
+   "t_min": 4.0,
+   "score": 0.5784,
+   "contributions": {
+    "cadence": 0.401,
+    "current": 0.315,
+    "vibration": 0.193,
+    "temperature": 0.092
+   },
+   "deviations": {
+    "vibration": {
+     "value": 1.9,
+     "normal": 2.0,
+     "ratio": 0.95,
+     "direction": "normal"
+    },
+    "temperature": {
+     "value": 43.41,
+     "normal": 44.96,
+     "ratio": 0.97,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 12.07,
+     "normal": 12.02,
+     "ratio": 1.0,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 30.99,
+     "normal": 29.93,
+     "ratio": 1.04,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.94
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.04
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.02
+    }
+   ],
+   "text": "Alert on M6: cadence pattern is unusual \u2014 40% of the anomaly; current pattern is unusual \u2014 32% of the anomaly; vibration pattern is unusual \u2014 19% of the anomaly. Most consistent with SENSOR_STUCK (94% likelihood), PHASE_IMBALANCE (4% likelihood), CONVEYOR_JAM (2% likelihood).",
+   "scenario_id": "GEN-42-0014",
+   "true_fault": null
+  },
+  {
+   "machine_id": "M6",
+   "t_min": 138.0,
+   "score": 0.5359,
+   "contributions": {
+    "cadence": 0.482,
+    "vibration": 0.456,
+    "current": 0.031,
+    "temperature": 0.03
+   },
+   "deviations": {
+    "vibration": {
+     "value": 2.04,
+     "normal": 2.0,
+     "ratio": 1.02,
+     "direction": "normal+flat"
+    },
+    "temperature": {
+     "value": 43.81,
+     "normal": 44.96,
+     "ratio": 0.97,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 12.01,
+     "normal": 12.02,
+     "ratio": 1.0,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 31.54,
+     "normal": 29.93,
+     "ratio": 1.05,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.98
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.01
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.01
+    }
+   ],
+   "text": "Alert on M6: cadence pattern is unusual \u2014 48% of the anomaly; vibration signal is frozen (no variation: possible sensor fault) \u2014 46% of the anomaly. Most consistent with SENSOR_STUCK (98% likelihood), PHASE_IMBALANCE (1% likelihood), CONVEYOR_JAM (1% likelihood).",
+   "scenario_id": "GEN-42-0014",
+   "true_fault": "SENSOR_STUCK"
+  },
+  {
+   "machine_id": "M6",
+   "t_min": 315.0,
+   "score": 0.5452,
+   "contributions": {
+    "cadence": 0.493,
+    "vibration": 0.381,
+    "temperature": 0.126,
+    "current": 0.0
+   },
+   "deviations": {
+    "vibration": {
+     "value": 2.04,
+     "normal": 2.0,
+     "ratio": 1.02,
+     "direction": "normal+flat"
+    },
+    "temperature": {
+     "value": 43.1,
+     "normal": 44.96,
+     "ratio": 0.96,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 11.9,
+     "normal": 12.02,
+     "ratio": 0.99,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 31.33,
+     "normal": 29.93,
+     "ratio": 1.05,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.98
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.01
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.01
+    }
+   ],
+   "text": "Alert on M6: cadence pattern is unusual \u2014 49% of the anomaly; vibration signal is frozen (no variation: possible sensor fault) \u2014 38% of the anomaly; temperature pattern is unusual \u2014 13% of the anomaly. Most consistent with SENSOR_STUCK (98% likelihood), PHASE_IMBALANCE (1% likelihood), CONVEYOR_JAM (1% likelihood).",
+   "scenario_id": "GEN-42-0014",
+   "true_fault": "SENSOR_STUCK"
+  },
+  {
+   "machine_id": "M6",
+   "t_min": 347.0,
+   "score": 0.5594,
+   "contributions": {
+    "cadence": 0.397,
+    "vibration": 0.358,
+    "temperature": 0.245,
+    "current": 0.0
+   },
+   "deviations": {
+    "vibration": {
+     "value": 2.04,
+     "normal": 2.0,
+     "ratio": 1.02,
+     "direction": "normal+flat"
+    },
+    "temperature": {
+     "value": 43.04,
+     "normal": 44.96,
+     "ratio": 0.96,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 12.08,
+     "normal": 12.02,
+     "ratio": 1.0,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 31.93,
+     "normal": 29.93,
+     "ratio": 1.07,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.98
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.01
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.01
+    }
+   ],
+   "text": "Alert on M6: cadence pattern is unusual \u2014 40% of the anomaly; vibration signal is frozen (no variation: possible sensor fault) \u2014 36% of the anomaly; temperature pattern is unusual \u2014 24% of the anomaly. Most consistent with SENSOR_STUCK (98% likelihood), PHASE_IMBALANCE (1% likelihood), CONVEYOR_JAM (1% likelihood).",
+   "scenario_id": "GEN-42-0014",
+   "true_fault": "SENSOR_STUCK"
+  },
+  {
+   "machine_id": "M1",
+   "t_min": 251.0,
+   "score": 0.5252,
+   "contributions": {
+    "vibration": 0.399,
+    "current": 0.35,
+    "temperature": 0.251,
+    "cadence": 0.0
+   },
+   "deviations": {
+    "vibration": {
+     "value": 1.9,
+     "normal": 2.0,
+     "ratio": 0.95,
+     "direction": "normal"
+    },
+    "temperature": {
+     "value": 46.96,
+     "normal": 44.96,
+     "ratio": 1.04,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 12.15,
+     "normal": 12.02,
+     "ratio": 1.01,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 29.48,
+     "normal": 29.93,
+     "ratio": 0.99,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.96
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.02
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.02
+    }
+   ],
+   "text": "Alert on M1: vibration pattern is unusual \u2014 40% of the anomaly; current pattern is unusual \u2014 35% of the anomaly; temperature pattern is unusual \u2014 25% of the anomaly. Most consistent with SENSOR_STUCK (96% likelihood), CONVEYOR_JAM (2% likelihood), PHASE_IMBALANCE (2% likelihood).",
+   "scenario_id": "GEN-42-0026",
+   "true_fault": null
+  },
+  {
+   "machine_id": "M3",
+   "t_min": 4.0,
+   "score": 0.5213,
+   "contributions": {
+    "temperature": 0.458,
+    "vibration": 0.343,
+    "cadence": 0.189,
+    "current": 0.011
+   },
+   "deviations": {
+    "vibration": {
+     "value": 1.9,
+     "normal": 2.0,
+     "ratio": 0.95,
+     "direction": "normal"
+    },
+    "temperature": {
+     "value": 42.07,
+     "normal": 44.96,
+     "ratio": 0.94,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 11.9,
+     "normal": 12.02,
+     "ratio": 0.99,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 28.76,
+     "normal": 29.93,
+     "ratio": 0.96,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.94
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.04
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.02
+    }
+   ],
+   "text": "Alert on M3: temperature pattern is unusual \u2014 46% of the anomaly; vibration pattern is unusual \u2014 34% of the anomaly; cadence pattern is unusual \u2014 19% of the anomaly. Most consistent with SENSOR_STUCK (94% likelihood), PHASE_IMBALANCE (4% likelihood), CONVEYOR_JAM (2% likelihood).",
+   "scenario_id": "GEN-42-0026",
+   "true_fault": null
+  },
+  {
+   "machine_id": "M3",
+   "t_min": 270.0,
+   "score": 0.5272,
+   "contributions": {
+    "cadence": 0.414,
+    "vibration": 0.306,
+    "temperature": 0.28,
+    "current": 0.0
+   },
+   "deviations": {
+    "vibration": {
+     "value": 1.94,
+     "normal": 2.0,
+     "ratio": 0.97,
+     "direction": "normal"
+    },
+    "temperature": {
+     "value": 43.06,
+     "normal": 44.96,
+     "ratio": 0.96,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 11.88,
+     "normal": 12.02,
+     "ratio": 0.99,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 28.48,
+     "normal": 29.93,
+     "ratio": 0.95,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.94
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.04
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.02
+    }
+   ],
+   "text": "Alert on M3: cadence pattern is unusual \u2014 41% of the anomaly; vibration pattern is unusual \u2014 31% of the anomaly; temperature pattern is unusual \u2014 28% of the anomaly. Most consistent with SENSOR_STUCK (94% likelihood), PHASE_IMBALANCE (4% likelihood), CONVEYOR_JAM (2% likelihood).",
+   "scenario_id": "GEN-42-0026",
+   "true_fault": null
+  },
+  {
+   "machine_id": "M3",
+   "t_min": 397.0,
+   "score": 0.5318,
+   "contributions": {
+    "vibration": 0.465,
+    "temperature": 0.287,
+    "cadence": 0.248,
+    "current": 0.0
+   },
+   "deviations": {
+    "vibration": {
+     "value": 1.9,
+     "normal": 2.0,
+     "ratio": 0.95,
+     "direction": "normal"
+    },
+    "temperature": {
+     "value": 42.63,
+     "normal": 44.96,
+     "ratio": 0.95,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 12.02,
+     "normal": 12.02,
+     "ratio": 1.0,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 28.78,
+     "normal": 29.93,
+     "ratio": 0.96,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.94
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.04
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.02
+    }
+   ],
+   "text": "Alert on M3: vibration pattern is unusual \u2014 46% of the anomaly; temperature pattern is unusual \u2014 29% of the anomaly; cadence pattern is unusual \u2014 25% of the anomaly. Most consistent with SENSOR_STUCK (94% likelihood), PHASE_IMBALANCE (4% likelihood), CONVEYOR_JAM (2% likelihood).",
+   "scenario_id": "GEN-42-0026",
+   "true_fault": null
+  },
+  {
+   "machine_id": "M4",
+   "t_min": 268.0,
+   "score": 0.5287,
+   "contributions": {
+    "vibration": 0.758,
+    "current": 0.232,
+    "cadence": 0.008,
+    "temperature": 0.002
+   },
+   "deviations": {
+    "vibration": {
+     "value": 2.1,
+     "normal": 2.0,
+     "ratio": 1.05,
+     "direction": "normal+flat"
+    },
+    "temperature": {
+     "value": 45.91,
+     "normal": 44.96,
+     "ratio": 1.02,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 11.45,
+     "normal": 12.02,
+     "ratio": 0.95,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 30.28,
+     "normal": 29.93,
+     "ratio": 1.01,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.98
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.01
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.01
+    }
+   ],
+   "text": "Alert on M4: vibration signal is frozen (no variation: possible sensor fault) \u2014 76% of the anomaly; current pattern is unusual \u2014 23% of the anomaly. Most consistent with SENSOR_STUCK (98% likelihood), PHASE_IMBALANCE (1% likelihood), CONVEYOR_JAM (1% likelihood).",
+   "scenario_id": "GEN-42-0026",
+   "true_fault": "SENSOR_STUCK"
+  },
+  {
+   "machine_id": "M4",
+   "t_min": 300.0,
+   "score": 0.5258,
+   "contributions": {
+    "vibration": 0.75,
+    "temperature": 0.169,
+    "current": 0.081,
+    "cadence": 0.0
+   },
+   "deviations": {
+    "vibration": {
+     "value": 2.1,
+     "normal": 2.0,
+     "ratio": 1.05,
+     "direction": "normal+flat"
+    },
+    "temperature": {
+     "value": 46.71,
+     "normal": 44.96,
+     "ratio": 1.04,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 11.61,
+     "normal": 12.02,
+     "ratio": 0.97,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 30.15,
+     "normal": 29.93,
+     "ratio": 1.01,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.98
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.01
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.01
+    }
+   ],
+   "text": "Alert on M4: vibration signal is frozen (no variation: possible sensor fault) \u2014 75% of the anomaly; temperature pattern is unusual \u2014 17% of the anomaly. Most consistent with SENSOR_STUCK (98% likelihood), PHASE_IMBALANCE (1% likelihood), CONVEYOR_JAM (1% likelihood).",
+   "scenario_id": "GEN-42-0026",
+   "true_fault": "SENSOR_STUCK"
+  },
+  {
+   "machine_id": "M4",
+   "t_min": 348.0,
+   "score": 0.5499,
+   "contributions": {
+    "vibration": 0.677,
+    "current": 0.132,
+    "cadence": 0.123,
+    "temperature": 0.069
+   },
+   "deviations": {
+    "vibration": {
+     "value": 2.1,
+     "normal": 2.0,
+     "ratio": 1.05,
+     "direction": "normal+flat"
+    },
+    "temperature": {
+     "value": 46.2,
+     "normal": 44.96,
+     "ratio": 1.03,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 11.6,
+     "normal": 12.02,
+     "ratio": 0.96,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 30.63,
+     "normal": 29.93,
+     "ratio": 1.02,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.98
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.01
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.01
+    }
+   ],
+   "text": "Alert on M4: vibration signal is frozen (no variation: possible sensor fault) \u2014 68% of the anomaly; current pattern is unusual \u2014 13% of the anomaly; cadence pattern is unusual \u2014 12% of the anomaly. Most consistent with SENSOR_STUCK (98% likelihood), PHASE_IMBALANCE (1% likelihood), CONVEYOR_JAM (1% likelihood).",
+   "scenario_id": "GEN-42-0026",
+   "true_fault": "SENSOR_STUCK"
+  },
+  {
+   "machine_id": "M4",
+   "t_min": 384.0,
+   "score": 0.5305,
+   "contributions": {
+    "vibration": 0.761,
+    "current": 0.192,
+    "temperature": 0.048,
+    "cadence": 0.0
+   },
+   "deviations": {
+    "vibration": {
+     "value": 2.1,
+     "normal": 2.0,
+     "ratio": 1.05,
+     "direction": "normal+flat"
+    },
+    "temperature": {
+     "value": 46.07,
+     "normal": 44.96,
+     "ratio": 1.02,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 11.5,
+     "normal": 12.02,
+     "ratio": 0.96,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 30.28,
+     "normal": 29.93,
+     "ratio": 1.01,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.98
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.01
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.01
+    }
+   ],
+   "text": "Alert on M4: vibration signal is frozen (no variation: possible sensor fault) \u2014 76% of the anomaly; current pattern is unusual \u2014 19% of the anomaly. Most consistent with SENSOR_STUCK (98% likelihood), PHASE_IMBALANCE (1% likelihood), CONVEYOR_JAM (1% likelihood).",
+   "scenario_id": "GEN-42-0026",
+   "true_fault": "SENSOR_STUCK"
+  },
+  {
+   "machine_id": "M4",
+   "t_min": 395.0,
+   "score": 0.5416,
+   "contributions": {
+    "vibration": 0.742,
+    "current": 0.251,
+    "temperature": 0.007,
+    "cadence": 0.0
+   },
+   "deviations": {
+    "vibration": {
+     "value": 2.1,
+     "normal": 2.0,
+     "ratio": 1.05,
+     "direction": "normal+flat"
+    },
+    "temperature": {
+     "value": 45.84,
+     "normal": 44.96,
+     "ratio": 1.02,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 11.74,
+     "normal": 12.02,
+     "ratio": 0.98,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 30.36,
+     "normal": 29.93,
+     "ratio": 1.01,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.98
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.01
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.01
+    }
+   ],
+   "text": "Alert on M4: vibration signal is frozen (no variation: possible sensor fault) \u2014 74% of the anomaly; current pattern is unusual \u2014 25% of the anomaly. Most consistent with SENSOR_STUCK (98% likelihood), PHASE_IMBALANCE (1% likelihood), CONVEYOR_JAM (1% likelihood).",
+   "scenario_id": "GEN-42-0026",
+   "true_fault": "SENSOR_STUCK"
+  },
+  {
+   "machine_id": "M4",
+   "t_min": 408.0,
+   "score": 0.5251,
+   "contributions": {
+    "vibration": 0.827,
+    "temperature": 0.158,
+    "current": 0.014,
+    "cadence": 0.0
+   },
+   "deviations": {
+    "vibration": {
+     "value": 2.1,
+     "normal": 2.0,
+     "ratio": 1.05,
+     "direction": "normal+flat"
+    },
+    "temperature": {
+     "value": 46.52,
+     "normal": 44.96,
+     "ratio": 1.03,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 11.74,
+     "normal": 12.02,
+     "ratio": 0.98,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 30.28,
+     "normal": 29.93,
+     "ratio": 1.01,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.98
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.01
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.01
+    }
+   ],
+   "text": "Alert on M4: vibration signal is frozen (no variation: possible sensor fault) \u2014 83% of the anomaly; temperature pattern is unusual \u2014 16% of the anomaly. Most consistent with SENSOR_STUCK (98% likelihood), PHASE_IMBALANCE (1% likelihood), CONVEYOR_JAM (1% likelihood).",
+   "scenario_id": "GEN-42-0026",
+   "true_fault": "SENSOR_STUCK"
+  },
+  {
+   "machine_id": "M4",
+   "t_min": 451.0,
+   "score": 0.5732,
+   "contributions": {
+    "vibration": 0.538,
+    "cadence": 0.202,
+    "temperature": 0.17,
+    "current": 0.09
+   },
+   "deviations": {
+    "vibration": {
+     "value": 2.1,
+     "normal": 2.0,
+     "ratio": 1.05,
+     "direction": "normal+flat"
+    },
+    "temperature": {
+     "value": 46.98,
+     "normal": 44.96,
+     "ratio": 1.04,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 11.59,
+     "normal": 12.02,
+     "ratio": 0.96,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 30.09,
+     "normal": 29.93,
+     "ratio": 1.01,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.98
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.01
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.01
+    }
+   ],
+   "text": "Alert on M4: vibration signal is frozen (no variation: possible sensor fault) \u2014 54% of the anomaly; cadence pattern is unusual \u2014 20% of the anomaly; temperature pattern is unusual \u2014 17% of the anomaly. Most consistent with SENSOR_STUCK (98% likelihood), PHASE_IMBALANCE (1% likelihood), CONVEYOR_JAM (1% likelihood).",
+   "scenario_id": "GEN-42-0026",
+   "true_fault": "SENSOR_STUCK"
+  },
+  {
+   "machine_id": "M6",
+   "t_min": 196.0,
+   "score": 0.519,
+   "contributions": {
+    "temperature": 0.962,
+    "cadence": 0.038,
+    "current": 0.0,
+    "vibration": 0.0
+   },
+   "deviations": {
+    "vibration": {
+     "value": 2.01,
+     "normal": 2.0,
+     "ratio": 1.0,
+     "direction": "normal"
+    },
+    "temperature": {
+     "value": 55.01,
+     "normal": 44.96,
+     "ratio": 1.22,
+     "direction": "up"
+    },
+    "current": {
+     "value": 11.98,
+     "normal": 12.02,
+     "ratio": 1.0,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 29.81,
+     "normal": 29.93,
+     "ratio": 1.0,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "COOLING_FAILURE",
+     "match": 0.38
+    },
+    {
+     "fault_code": "OVERHEATING",
+     "match": 0.36
+    },
+    {
+     "fault_code": "SENSOR_DRIFT",
+     "match": 0.26
+    }
+   ],
+   "text": "Alert on M6: temperature is 1.22x its normal level (55.01 vs 44.96 \u00b0C) \u2014 96% of the anomaly. Most consistent with COOLING_FAILURE (38% likelihood), OVERHEATING (36% likelihood), SENSOR_DRIFT (26% likelihood).",
+   "scenario_id": "GEN-42-0026",
+   "true_fault": "OVERHEATING"
+  },
+  {
+   "machine_id": "M6",
+   "t_min": 202.0,
+   "score": 0.529,
+   "contributions": {
+    "temperature": 0.9,
+    "current": 0.088,
+    "cadence": 0.013,
+    "vibration": 0.0
+   },
+   "deviations": {
+    "vibration": {
+     "value": 2.02,
+     "normal": 2.0,
+     "ratio": 1.01,
+     "direction": "normal"
+    },
+    "temperature": {
+     "value": 59.56,
+     "normal": 44.96,
+     "ratio": 1.32,
+     "direction": "up"
+    },
+    "current": {
+     "value": 11.8,
+     "normal": 12.02,
+     "ratio": 0.98,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 30.64,
+     "normal": 29.93,
+     "ratio": 1.02,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "OVERHEATING",
+     "match": 0.47
+    },
+    {
+     "fault_code": "COOLING_FAILURE",
+     "match": 0.28
+    },
+    {
+     "fault_code": "SENSOR_DRIFT",
+     "match": 0.25
+    }
+   ],
+   "text": "Alert on M6: temperature is 1.32x its normal level (59.56 vs 44.96 \u00b0C) \u2014 90% of the anomaly. Most consistent with OVERHEATING (47% likelihood), COOLING_FAILURE (28% likelihood), SENSOR_DRIFT (25% likelihood).",
+   "scenario_id": "GEN-42-0026",
+   "true_fault": "OVERHEATING"
+  },
+  {
+   "machine_id": "M6",
+   "t_min": 224.0,
+   "score": 0.5236,
+   "contributions": {
+    "temperature": 0.981,
+    "vibration": 0.019,
+    "current": 0.0,
+    "cadence": 0.0
+   },
+   "deviations": {
+    "vibration": {
+     "value": 2.0,
+     "normal": 2.0,
+     "ratio": 1.0,
+     "direction": "normal"
+    },
+    "temperature": {
+     "value": 75.54,
+     "normal": 44.96,
+     "ratio": 1.68,
+     "direction": "up"
+    },
+    "current": {
+     "value": 11.99,
+     "normal": 12.02,
+     "ratio": 1.0,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 30.19,
+     "normal": 29.93,
+     "ratio": 1.01,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "OVERHEATING",
+     "match": 0.48
+    },
+    {
+     "fault_code": "COOLING_FAILURE",
+     "match": 0.26
+    },
+    {
+     "fault_code": "SENSOR_DRIFT",
+     "match": 0.25
+    }
+   ],
+   "text": "Alert on M6: temperature is 1.68x its normal level (75.54 vs 44.96 \u00b0C) \u2014 98% of the anomaly. Most consistent with OVERHEATING (48% likelihood), COOLING_FAILURE (26% likelihood), SENSOR_DRIFT (25% likelihood).",
+   "scenario_id": "GEN-42-0026",
+   "true_fault": "OVERHEATING"
+  },
+  {
+   "machine_id": "M2",
+   "t_min": 314.0,
+   "score": 0.582,
+   "contributions": {
+    "vibration": 0.507,
+    "cadence": 0.279,
+    "current": 0.178,
+    "temperature": 0.035
+   },
+   "deviations": {
+    "vibration": {
+     "value": 1.9,
+     "normal": 2.0,
+     "ratio": 0.95,
+     "direction": "normal+flat"
+    },
+    "temperature": {
+     "value": 45.14,
+     "normal": 44.96,
+     "ratio": 1.0,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 12.14,
+     "normal": 12.02,
+     "ratio": 1.01,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 30.05,
+     "normal": 29.93,
+     "ratio": 1.0,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.99
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.01
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.01
+    }
+   ],
+   "text": "Alert on M2: vibration signal is frozen (no variation: possible sensor fault) \u2014 51% of the anomaly; cadence pattern is unusual \u2014 28% of the anomaly; current pattern is unusual \u2014 18% of the anomaly. Most consistent with SENSOR_STUCK (99% likelihood), CONVEYOR_JAM (1% likelihood), PHASE_IMBALANCE (1% likelihood).",
+   "scenario_id": "GEN-42-0029",
+   "true_fault": "SENSOR_STUCK"
+  },
+  {
+   "machine_id": "M2",
+   "t_min": 332.0,
+   "score": 0.5376,
+   "contributions": {
+    "vibration": 0.641,
+    "cadence": 0.359,
+    "current": 0.0,
+    "temperature": 0.0
+   },
+   "deviations": {
+    "vibration": {
+     "value": 1.9,
+     "normal": 2.0,
+     "ratio": 0.95,
+     "direction": "normal+flat"
+    },
+    "temperature": {
+     "value": 45.43,
+     "normal": 44.96,
+     "ratio": 1.01,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 11.97,
+     "normal": 12.02,
+     "ratio": 1.0,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 29.19,
+     "normal": 29.93,
+     "ratio": 0.98,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.99
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.01
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.01
+    }
+   ],
+   "text": "Alert on M2: vibration signal is frozen (no variation: possible sensor fault) \u2014 64% of the anomaly; cadence pattern is unusual \u2014 36% of the anomaly. Most consistent with SENSOR_STUCK (99% likelihood), CONVEYOR_JAM (1% likelihood), PHASE_IMBALANCE (1% likelihood).",
+   "scenario_id": "GEN-42-0029",
+   "true_fault": "SENSOR_STUCK"
+  },
+  {
+   "machine_id": "M2",
+   "t_min": 454.0,
+   "score": 0.5541,
+   "contributions": {
+    "vibration": 0.583,
+    "cadence": 0.3,
+    "current": 0.117,
+    "temperature": 0.0
+   },
+   "deviations": {
+    "vibration": {
+     "value": 1.9,
+     "normal": 2.0,
+     "ratio": 0.95,
+     "direction": "normal+flat"
+    },
+    "temperature": {
+     "value": 45.07,
+     "normal": 44.96,
+     "ratio": 1.0,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 12.09,
+     "normal": 12.02,
+     "ratio": 1.01,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 29.66,
+     "normal": 29.93,
+     "ratio": 0.99,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.99
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.01
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.01
+    }
+   ],
+   "text": "Alert on M2: vibration signal is frozen (no variation: possible sensor fault) \u2014 58% of the anomaly; cadence pattern is unusual \u2014 30% of the anomaly; current pattern is unusual \u2014 12% of the anomaly. Most consistent with SENSOR_STUCK (99% likelihood), CONVEYOR_JAM (1% likelihood), PHASE_IMBALANCE (1% likelihood).",
+   "scenario_id": "GEN-42-0029",
+   "true_fault": "SENSOR_STUCK"
+  },
+  {
+   "machine_id": "M2",
+   "t_min": 464.0,
+   "score": 0.524,
+   "contributions": {
+    "vibration": 0.785,
+    "temperature": 0.154,
+    "cadence": 0.061,
+    "current": 0.0
+   },
+   "deviations": {
+    "vibration": {
+     "value": 1.9,
+     "normal": 2.0,
+     "ratio": 0.95,
+     "direction": "normal+flat"
+    },
+    "temperature": {
+     "value": 46.57,
+     "normal": 44.96,
+     "ratio": 1.04,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 12.09,
+     "normal": 12.02,
+     "ratio": 1.01,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 29.39,
+     "normal": 29.93,
+     "ratio": 0.98,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.99
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.01
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.01
+    }
+   ],
+   "text": "Alert on M2: vibration signal is frozen (no variation: possible sensor fault) \u2014 78% of the anomaly; temperature pattern is unusual \u2014 15% of the anomaly. Most consistent with SENSOR_STUCK (99% likelihood), CONVEYOR_JAM (1% likelihood), PHASE_IMBALANCE (1% likelihood).",
+   "scenario_id": "GEN-42-0029",
+   "true_fault": "SENSOR_STUCK"
+  },
+  {
+   "machine_id": "M4",
+   "t_min": 126.0,
+   "score": 0.6313,
+   "contributions": {
+    "vibration": 0.469,
+    "current": 0.292,
+    "cadence": 0.147,
+    "temperature": 0.093
+   },
+   "deviations": {
+    "vibration": {
+     "value": 2.17,
+     "normal": 2.0,
+     "ratio": 1.08,
+     "direction": "up"
+    },
+    "temperature": {
+     "value": 44.87,
+     "normal": 44.96,
+     "ratio": 1.0,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 11.71,
+     "normal": 12.02,
+     "ratio": 0.97,
+     "direction": "normal+noisy"
+    },
+    "cadence": {
+     "value": 29.36,
+     "normal": 29.93,
+     "ratio": 0.98,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.66
+    },
+    {
+     "fault_code": "TOOL_WEAR",
+     "match": 0.17
+    },
+    {
+     "fault_code": "MISALIGNMENT",
+     "match": 0.17
+    }
+   ],
+   "text": "Alert on M4: vibration is 1.08x its normal level (2.17 vs 2.0 mm/s) \u2014 47% of the anomaly; current became unstable (much noisier than usual) \u2014 29% of the anomaly; cadence pattern is unusual \u2014 15% of the anomaly. Most consistent with PHASE_IMBALANCE (66% likelihood), TOOL_WEAR (17% likelihood), MISALIGNMENT (17% likelihood).",
+   "scenario_id": "GEN-42-0029",
+   "true_fault": "PHASE_IMBALANCE"
+  },
+  {
+   "machine_id": "M1",
+   "t_min": 390.0,
+   "score": 0.5389,
+   "contributions": {
+    "cadence": 0.459,
+    "vibration": 0.289,
+    "temperature": 0.16,
+    "current": 0.092
+   },
+   "deviations": {
+    "vibration": {
+     "value": 2.02,
+     "normal": 2.0,
+     "ratio": 1.01,
+     "direction": "normal"
+    },
+    "temperature": {
+     "value": 43.18,
+     "normal": 44.96,
+     "ratio": 0.96,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 11.58,
+     "normal": 12.02,
+     "ratio": 0.96,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 31.59,
+     "normal": 29.93,
+     "ratio": 1.06,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.94
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.04
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.02
+    }
+   ],
+   "text": "Alert on M1: cadence pattern is unusual \u2014 46% of the anomaly; vibration pattern is unusual \u2014 29% of the anomaly; temperature pattern is unusual \u2014 16% of the anomaly. Most consistent with SENSOR_STUCK (94% likelihood), PHASE_IMBALANCE (4% likelihood), CONVEYOR_JAM (2% likelihood).",
+   "scenario_id": "GEN-42-0031",
+   "true_fault": null
+  },
+  {
+   "machine_id": "M1",
+   "t_min": 452.0,
+   "score": 0.5371,
+   "contributions": {
+    "cadence": 0.623,
+    "current": 0.178,
+    "temperature": 0.104,
+    "vibration": 0.096
+   },
+   "deviations": {
+    "vibration": {
+     "value": 2.03,
+     "normal": 2.0,
+     "ratio": 1.02,
+     "direction": "normal"
+    },
+    "temperature": {
+     "value": 43.98,
+     "normal": 44.96,
+     "ratio": 0.98,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 11.5,
+     "normal": 12.02,
+     "ratio": 0.96,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 31.57,
+     "normal": 29.93,
+     "ratio": 1.05,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.94
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.04
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.02
+    }
+   ],
+   "text": "Alert on M1: cadence pattern is unusual \u2014 62% of the anomaly; current pattern is unusual \u2014 18% of the anomaly; temperature pattern is unusual \u2014 10% of the anomaly. Most consistent with SENSOR_STUCK (94% likelihood), PHASE_IMBALANCE (4% likelihood), CONVEYOR_JAM (2% likelihood).",
+   "scenario_id": "GEN-42-0031",
+   "true_fault": null
+  },
+  {
+   "machine_id": "M2",
+   "t_min": 4.0,
+   "score": 0.5265,
+   "contributions": {
+    "vibration": 0.399,
+    "temperature": 0.394,
+    "current": 0.206,
+    "cadence": 0.0
+   },
+   "deviations": {
+    "vibration": {
+     "value": 2.06,
+     "normal": 2.0,
+     "ratio": 1.03,
+     "direction": "normal"
+    },
+    "temperature": {
+     "value": 44.77,
+     "normal": 44.96,
+     "ratio": 1.0,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 11.85,
+     "normal": 12.02,
+     "ratio": 0.99,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 30.18,
+     "normal": 29.93,
+     "ratio": 1.01,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.94
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.04
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.02
+    }
+   ],
+   "text": "Alert on M2: vibration pattern is unusual \u2014 40% of the anomaly; temperature pattern is unusual \u2014 39% of the anomaly; current pattern is unusual \u2014 21% of the anomaly. Most consistent with SENSOR_STUCK (94% likelihood), PHASE_IMBALANCE (4% likelihood), CONVEYOR_JAM (2% likelihood).",
+   "scenario_id": "GEN-42-0031",
+   "true_fault": null
+  },
+  {
+   "machine_id": "M2",
+   "t_min": 347.0,
+   "score": 0.544,
+   "contributions": {
+    "vibration": 0.508,
+    "cadence": 0.345,
+    "current": 0.127,
+    "temperature": 0.02
+   },
+   "deviations": {
+    "vibration": {
+     "value": 2.06,
+     "normal": 2.0,
+     "ratio": 1.03,
+     "direction": "normal+flat"
+    },
+    "temperature": {
+     "value": 46.02,
+     "normal": 44.96,
+     "ratio": 1.02,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 11.56,
+     "normal": 12.02,
+     "ratio": 0.96,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 30.8,
+     "normal": 29.93,
+     "ratio": 1.03,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.99
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.01
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.01
+    }
+   ],
+   "text": "Alert on M2: vibration signal is frozen (no variation: possible sensor fault) \u2014 51% of the anomaly; cadence pattern is unusual \u2014 34% of the anomaly; current pattern is unusual \u2014 13% of the anomaly. Most consistent with SENSOR_STUCK (99% likelihood), CONVEYOR_JAM (1% likelihood), PHASE_IMBALANCE (1% likelihood).",
+   "scenario_id": "GEN-42-0031",
+   "true_fault": "SENSOR_STUCK"
+  },
+  {
+   "machine_id": "M3",
+   "t_min": 234.0,
+   "score": 0.5466,
+   "contributions": {
+    "current": 0.494,
+    "cadence": 0.395,
+    "vibration": 0.094,
+    "temperature": 0.016
+   },
+   "deviations": {
+    "vibration": {
+     "value": 2.03,
+     "normal": 2.0,
+     "ratio": 1.01,
+     "direction": "normal"
+    },
+    "temperature": {
+     "value": 44.19,
+     "normal": 44.96,
+     "ratio": 0.98,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 11.7,
+     "normal": 12.02,
+     "ratio": 0.97,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 25.25,
+     "normal": 29.93,
+     "ratio": 0.84,
+     "direction": "down"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "BELT_SLIP",
+     "match": 0.74
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.26
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.0
+    }
+   ],
+   "text": "Alert on M3: current pattern is unusual \u2014 49% of the anomaly; cadence dropped to 84% of normal (25.25 vs 29.93 parts/min) \u2014 40% of the anomaly. Most consistent with BELT_SLIP (74% likelihood), CONVEYOR_JAM (26% likelihood).",
+   "scenario_id": "GEN-42-0032",
+   "true_fault": "BELT_SLIP"
+  },
+  {
+   "machine_id": "M6",
+   "t_min": 154.0,
+   "score": 0.5359,
+   "contributions": {
+    "vibration": 0.608,
+    "temperature": 0.277,
+    "current": 0.089,
+    "cadence": 0.026
+   },
+   "deviations": {
+    "vibration": {
+     "value": 2.07,
+     "normal": 2.0,
+     "ratio": 1.04,
+     "direction": "normal+flat"
+    },
+    "temperature": {
+     "value": 44.09,
+     "normal": 44.96,
+     "ratio": 0.98,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 12.26,
+     "normal": 12.02,
+     "ratio": 1.02,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 30.51,
+     "normal": 29.93,
+     "ratio": 1.02,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.98
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.01
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.01
+    }
+   ],
+   "text": "Alert on M6: vibration signal is frozen (no variation: possible sensor fault) \u2014 61% of the anomaly; temperature pattern is unusual \u2014 28% of the anomaly. Most consistent with SENSOR_STUCK (98% likelihood), PHASE_IMBALANCE (1% likelihood), CONVEYOR_JAM (1% likelihood).",
+   "scenario_id": "GEN-42-0032",
+   "true_fault": "SENSOR_STUCK"
+  },
+  {
+   "machine_id": "M6",
+   "t_min": 164.0,
+   "score": 0.5245,
+   "contributions": {
+    "vibration": 0.638,
+    "current": 0.323,
+    "cadence": 0.039,
+    "temperature": 0.0
+   },
+   "deviations": {
+    "vibration": {
+     "value": 2.07,
+     "normal": 2.0,
+     "ratio": 1.04,
+     "direction": "normal+flat"
+    },
+    "temperature": {
+     "value": 44.88,
+     "normal": 44.96,
+     "ratio": 1.0,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 12.33,
+     "normal": 12.02,
+     "ratio": 1.03,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 30.79,
+     "normal": 29.93,
+     "ratio": 1.03,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.98
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.01
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.01
+    }
+   ],
+   "text": "Alert on M6: vibration signal is frozen (no variation: possible sensor fault) \u2014 64% of the anomaly; current pattern is unusual \u2014 32% of the anomaly. Most consistent with SENSOR_STUCK (98% likelihood), PHASE_IMBALANCE (1% likelihood), CONVEYOR_JAM (1% likelihood).",
+   "scenario_id": "GEN-42-0032",
+   "true_fault": "SENSOR_STUCK"
+  },
+  {
+   "machine_id": "M6",
+   "t_min": 191.0,
+   "score": 0.5287,
+   "contributions": {
+    "vibration": 0.596,
+    "current": 0.402,
+    "cadence": 0.002,
+    "temperature": 0.0
+   },
+   "deviations": {
+    "vibration": {
+     "value": 2.07,
+     "normal": 2.0,
+     "ratio": 1.04,
+     "direction": "normal+flat"
+    },
+    "temperature": {
+     "value": 45.9,
+     "normal": 44.96,
+     "ratio": 1.02,
+     "direction": "normal"
+    },
+    "current": {
+     "value": 12.32,
+     "normal": 12.02,
+     "ratio": 1.02,
+     "direction": "normal"
+    },
+    "cadence": {
+     "value": 30.18,
+     "normal": 29.93,
+     "ratio": 1.01,
+     "direction": "normal"
+    }
+   },
+   "candidates": [
+    {
+     "fault_code": "SENSOR_STUCK",
+     "match": 0.99
+    },
+    {
+     "fault_code": "CONVEYOR_JAM",
+     "match": 0.01
+    },
+    {
+     "fault_code": "PHASE_IMBALANCE",
+     "match": 0.01
+    }
+   ],
+   "text": "Alert on M6: vibration signal is frozen (no variation: possible sensor fault) \u2014 60% of the anomaly; current pattern is unusual \u2014 40% of the anomaly. Most consistent with SENSOR_STUCK (99% likelihood), CONVEYOR_JAM (1% likelihood), PHASE_IMBALANCE (1% likelihood).",
+   "scenario_id": "GEN-42-0032",
+   "true_fault": "SENSOR_STUCK"
+  }
+ ]
+}

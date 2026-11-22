@@ -1,0 +1,79 @@
+{
+  "protocol": {
+    "seed": 0,
+    "window": 30
+  },
+  "rul_cmapss_fd001": {
+    "baseline_mean_rmse": 40.45563888549805,
+    "n_test_engines": 100,
+    "lstm": {
+      "rmse": 13.51026725769043,
+      "nasa_score": 293.4881896972656,
+      "epochs": 0,
+      "mae": 10.292454719543457
+    },
+    "tcn": {
+      "rmse": 14.214932441711426,
+      "nasa_score": 316.66845703125,
+      "epochs": 0,
+      "mae": 10.783334732055664
+    }
+  },
+  "fault_type_sim": {
+    "classes": [
+      "BEARING_WEAR",
+      "BELT_SLIP",
+      "CONVEYOR_JAM",
+      "COOLING_FAILURE",
+      "MISALIGNMENT",
+      "MOTOR_OVERCURRENT",
+      "OVERHEATING",
+      "PHASE_IMBALANCE",
+      "SENSOR_DRIFT",
+      "SENSOR_STUCK",
+      "TOOL_WEAR",
+      "none"
+    ],
+    "n_train": 3442,
+    "n_test": 1176,
+    "baseline_majority_macro_f1": 0.033785310734463274,
+    "lstm": {
+      "macro_f1": 0.8929108341606403,
+      "accuracy": 0.7593537414965986,
+      "epochs": 25,
+      "f1_by_class": {
+        "BEARING_WEAR": 1.0,
+        "BELT_SLIP": 1.0,
+        "CONVEYOR_JAM": 1.0,
+        "COOLING_FAILURE": 0.99,
+        "MISALIGNMENT": 0.98,
+        "MOTOR_OVERCURRENT": 1.0,
+        "OVERHEATING": 0.97,
+        "PHASE_IMBALANCE": 0.97,
+        "SENSOR_DRIFT": 0.98,
+        "SENSOR_STUCK": 0.67,
+        "TOOL_WEAR": 0.99,
+        "none": 0.16
+      }
+    },
+    "tcn": {
+      "macro_f1": 0.9152826266429134,
+      "accuracy": 0.7551020408163265,
+      "epochs": 25,
+      "f1_by_class": {
+        "BEARING_WEAR": 1.0,
+        "BELT_SLIP": 0.99,
+        "CONVEYOR_JAM": 1.0,
+        "COOLING_FAILURE": 1.0,
+        "MISALIGNMENT": 1.0,
+        "MOTOR_OVERCURRENT": 1.0,
+        "OVERHEATING": 1.0,
+        "PHASE_IMBALANCE": 0.98,
+        "SENSOR_DRIFT": 0.98,
+        "SENSOR_STUCK": 0.5,
+        "TOOL_WEAR": 1.0,
+        "none": 0.53
+      }
+    }
+  }
+}

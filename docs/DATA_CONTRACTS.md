@@ -10,6 +10,7 @@ Code reference: `services/ingestor/schemas.py`.
 factory/{line_id}/{machine_id}/telemetry    sensor values (one message, all sensors)
 factory/{line_id}/{machine_id}/event        discrete events (faults, alarms, state changes, repairs)
 factory/{line_id}/{machine_id}/production   parts produced since last message
+factory/{line_id}/{machine_id|LINE}/cmd     commands to the simulation (UI, RL agent, scenarios) — T33
 ```
 
 - Broker: `localhost:1883` (MQTT) or `ws://localhost:9001` (WebSocket). In Docker: `mosquitto:1883`.
@@ -40,9 +41,40 @@ Units: vibration mm/s, temperature °C, current A, cadence parts/min (table `sen
 {"ts": "2026-11-24T10:05:00Z", "parts_ok": 3, "parts_scrap": 0}
 ```
 
+### cmd (T33)
+The UI, the RL agent and the scenario runner drive the simulation through the **same** commands,
+so a human and the AI are comparable and every run is replayable. The simulation subscribes to
+`factory/{line}/+/cmd`; the ingestor logs every command in `events` (`event_type = 'command'`).
+
+```json
+{"command_id": "5b50…", "ts": "2026-11-24T10:05:00Z", "command": "inject_fault",
+ "params": {"fault_code": "BEARING_WEAR", "ramp_min": 30}, "issued_by": "ui", "scenario_id": "S042"}
+```
+
+| Level (target) | Command | Params |
+|---|---|---|
+| line (`LINE`) | `start_line`, `stop_line`, `pause_line` | — |
+| line (`LINE`) | `create_order` | `quantity` (≥1), `product` (default `A`), `order_id` (auto) |
+| line (`LINE`) | `set_time_scale` | `scale` 0.1–600 (sim seconds per real second) |
+| machine | `start_machine`, `stop_machine`, `repair`, `clear_fault`, `preventive_maintenance` | — |
+| machine | `set_speed` | `factor` 0.1–3.0 (1 = nominal, higher = faster wear) |
+| machine | `set_buffer` | `capacity` 0–200 parts |
+| machine | `inject_fault` | `fault_code` (catalogue), optional `ramp_min`, `severity` 1–5 |
+| machine | `dispatch_worker` | `action` inspect/repair/replace/preventive_maintenance, optional `worker_id` |
+
+`issued_by`: `ui` · `rl` · `scenario` · `script` · `human` · `baseline`. Unknown params are rejected.
+Schema: `roottwin/contracts.py` (`Command`). HTTP relay: `POST /command/{line}/{target}` on
+`http://localhost:8001` (Swagger at `/docs`), `GET /command/catalog`, `GET /command/faults`.
+
+### Fault catalogue (T09)
+`roottwin/faults/catalog.yaml` — 11 faults in 5 families (mechanical, electrical, thermal, sensor,
+process) with their sensor signature, onset, time to failure, repair skill/time/cost and LOTO flag.
+The simulation applies them with `ActiveFault.apply()` / `.state()`; see `scripts/publish_fake_data.py`
+for a working example.
+
 Invalid messages are logged and dropped by the ingestor (they never reach the DB).
 
-## Database (TimescaleDB, `postgresql://twin:…@localhost:5432/twin`)
+## Database (TimescaleDB, `postgresql://twin:…@localhost:5433/twin`)
 
 | Table / view | Kind | Content |
 |---|---|---|

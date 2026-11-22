@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "roottwin"
+version = "0.2.0"
+description = "3D factory digital twin: fault detection, diagnosis and AI-guided repair"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.9,<3",
+    "paho-mqtt>=2.1,<3",
+    "pyyaml>=6",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "psycopg2-binary>=2.9",
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "pyarrow>=15",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "httpx>=0.27", "jupyter", "matplotlib", "seaborn", "nbconvert", "nbformat"]
+
+[tool.setuptools.packages.find]
+include = ["roottwin*"]
+
+[tool.setuptools.package-data]
+"roottwin.faults" = ["*.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

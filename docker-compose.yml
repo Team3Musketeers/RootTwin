@@ -26,7 +26,7 @@ services:
     image: timescale/timescaledb:2.17.2-pg16
     container_name: twin-timescaledb
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:-5433}:5432"  # host 5433: avoids clashing with a local PostgreSQL
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-twin}
       POSTGRES_USER: ${POSTGRES_USER:-twin}
@@ -42,7 +42,9 @@ services:
     restart: unless-stopped
 
   ingestor:
-    build: ./services/ingestor
+    build:
+      context: .
+      dockerfile: services/ingestor/Dockerfile
     container_name: twin-ingestor
     environment:
       MQTT_HOST: mosquitto
@@ -56,6 +58,23 @@ services:
       mosquitto:
         condition: service_healthy
       timescaledb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Command relay HTTP -> MQTT (T33). Swagger: http://localhost:8001/docs
+  # Person C's main API can mount roottwin.command_api.router instead.
+  command-api:
+    build:
+      context: .
+      dockerfile: services/command_api/Dockerfile
+    container_name: twin-command-api
+    ports:
+      - "${COMMAND_API_PORT:-8001}:8001"
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+    depends_on:
+      mosquitto:
         condition: service_healthy
     restart: unless-stopped
 

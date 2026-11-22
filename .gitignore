@@ -12,6 +12,8 @@ venv/
 # Data (datasets are downloaded, never committed)
 data/raw/
 data/processed/
+data/scenarios/
+*.egg-info/
 *.parquet
 *.h5
 

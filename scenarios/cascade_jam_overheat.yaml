@@ -1,0 +1,11 @@
+# Root-cause test for diagnosis (T15/T19): a jam on M2 starves M3..M6
+# (symptoms everywhere downstream), then an unrelated overheating on M5.
+# Correct diagnosis: root cause #1 = M2 CONVEYOR_JAM, #2 = M5 OVERHEATING.
+scenario_id: CASCADE-JAM-OVERHEAT
+description: "Jam on M2 propagates downstream, then independent overheating on M5"
+seed: 11
+line_id: line1
+duration_min: 300
+faults:
+  - {at_min: 20,  machine_id: M2, fault_code: CONVEYOR_JAM, severity: 5}
+  - {at_min: 150, machine_id: M5, fault_code: OVERHEATING}

@@ -1,0 +1,10 @@
+# Trap for the detector and the copilot: temperature on M4 drifts because the
+# PROBE is faulty, the machine is healthy. Right answer = recalibrate/replace
+# the sensor (no LOTO, no machine stop), not a mechanical repair.
+scenario_id: FALSE-ALARM-DRIFT-M4
+description: "Sensor drift on M4: looks like overheating, machine is fine"
+seed: 23
+line_id: line1
+duration_min: 300
+faults:
+  - {at_min: 40, machine_id: M4, fault_code: SENSOR_DRIFT}

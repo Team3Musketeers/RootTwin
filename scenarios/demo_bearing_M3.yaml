@@ -1,0 +1,10 @@
+# Demo scenario (step 3 of the 5-minute demo): bearing wear on M3.
+# At time scale x60 (1 sim minute per real second) M3 turns orange ~1 min
+# after injection and red ~2 min after: time for the detector to alert first.
+scenario_id: DEMO-BEARING-M3
+description: "Bearing wear on M3 - the detector must alert before the stop"
+seed: 7
+line_id: line1
+duration_min: 240
+faults:
+  - {at_min: 30, machine_id: M3, fault_code: BEARING_WEAR, severity: 4}

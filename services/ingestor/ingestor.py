@@ -18,12 +18,12 @@ import psycopg2
 from psycopg2.extras import Json, execute_values
 from pydantic import ValidationError
 
-from schemas import COLUMNS, to_rows
+from roottwin.contracts import COLUMNS, LINE_TARGET, to_rows
 
 MQTT_HOST = os.getenv("MQTT_HOST", "localhost")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 MQTT_TOPIC = os.getenv("MQTT_TOPIC", "factory/#")
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://twin:twin_dev_password@localhost:5432/twin")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://twin:twin_dev_password@localhost:5433/twin")
 FLUSH_INTERVAL_S = float(os.getenv("FLUSH_INTERVAL_S", "1.0"))
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "500"))
 
@@ -71,31 +71,45 @@ def connect_db(retries: int = 30):
     raise RuntimeError("could not connect to TimescaleDB")
 
 
+retry: list[tuple[str, tuple, str, str]] = []  # items of a failed write, written first next time
+
+
 def flush(conn, known_machines: set[str]) -> int:
+    global retry
     batch: dict[str, list[tuple]] = defaultdict(list)
     new_machines: set[tuple[str, str]] = set()
-    while len(batch) == 0 or sum(map(len, batch.values())) < BATCH_SIZE:
-        try:
-            table, row, line_id, machine_id = inbox.get_nowait()
-        except queue.Empty:
-            break
+    taken: list[tuple[str, tuple, str, str]] = []
+    while len(taken) < BATCH_SIZE:
+        if retry:
+            item = retry.pop(0)
+        else:
+            try:
+                item = inbox.get_nowait()
+            except queue.Empty:
+                break
+        taken.append(item)
+        table, row, line_id, machine_id = item
         if table == "events":
             row = (*row[:-1], Json(row[-1]))  # payload dict -> JSONB
         batch[table].append(row)
-        if machine_id not in known_machines:
+        if machine_id not in known_machines and machine_id != LINE_TARGET:
             new_machines.add((machine_id, line_id))
     if not batch:
         return 0
 
-    with conn.cursor() as cur:
-        if new_machines:
-            execute_values(cur,
-                "INSERT INTO machines (machine_id, line_id) VALUES %s ON CONFLICT DO NOTHING",
-                list(new_machines))
-        for table, rows in batch.items():
-            cols = ", ".join(COLUMNS[table])
-            execute_values(cur, f"INSERT INTO {table} ({cols}) VALUES %s", rows)
-    conn.commit()
+    try:
+        with conn.cursor() as cur:
+            if new_machines:
+                execute_values(cur,
+                    "INSERT INTO machines (machine_id, line_id) VALUES %s ON CONFLICT DO NOTHING",
+                    list(new_machines))
+            for table, rows in batch.items():
+                cols = ", ".join(COLUMNS[table])
+                execute_values(cur, f"INSERT INTO {table} ({cols}) VALUES %s", rows)
+        conn.commit()
+    except psycopg2.Error:
+        retry = taken + retry  # keep the rows; the main loop reconnects and retries
+        raise
     known_machines.update(m for m, _ in new_machines)
     n = sum(map(len, batch.values()))
     log.debug("flushed %s rows", n)

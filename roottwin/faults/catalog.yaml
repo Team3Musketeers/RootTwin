@@ -1,0 +1,150 @@
+# Fault catalogue (T09): 11 faults in 5 families.
+# Used by: the simulation (apply effects), the scenario runner (inject),
+# detection/diagnosis (ground-truth labels), the RL env (repair time/cost),
+# the copilot (repair manual + LOTO) and the 3D (state colours).
+#
+# Sensor effect kinds (progress p goes 0 -> 1 over ramp_min after injection):
+#   ramp    value *= 1 + magnitude * p          (gradual degradation)
+#   step    value *= 1 + magnitude   once p > 0 (sudden change)
+#   offset  value += magnitude * p              (additive drift, sensor faults)
+#   noise   value += N(0, magnitude * |value| * p)
+#   stuck   value frozen at its last healthy reading
+# State: ok -> degraded when p >= degraded_at -> down when p >= 1 (if stops_machine).
+
+families:
+  mechanical: "Wear and misalignment of rotating parts"
+  electrical: "Motor and power supply problems"
+  thermal:    "Heat build-up and cooling"
+  sensor:     "Faulty measurement, the machine itself is fine"
+  process:    "Material flow and tooling"
+
+faults:
+  BEARING_WEAR:
+    family: mechanical
+    description: "Bearing raceway wear: vibration rises slowly, then temperature"
+    onset: gradual
+    ramp_min: 120
+    degraded_at: 0.4
+    stops_machine: true
+    effects:
+      - {sensor: vibration,   kind: ramp, magnitude: 2.0}
+      - {sensor: temperature, kind: ramp, magnitude: 0.3}
+    repair: {skill: mechanic, minutes: 45, cost_eur: 350, action: replace, loto_required: true}
+
+  MISALIGNMENT:
+    family: mechanical
+    description: "Shaft misalignment between motor and spindle"
+    onset: gradual
+    ramp_min: 90
+    degraded_at: 0.5
+    stops_machine: true
+    effects:
+      - {sensor: vibration, kind: ramp, magnitude: 1.2}
+      - {sensor: current,   kind: ramp, magnitude: 0.15}
+    repair: {skill: mechanic, minutes: 40, cost_eur: 150, action: repair, loto_required: true}
+
+  BELT_SLIP:
+    family: mechanical
+    description: "Drive belt slipping: throughput drops, current becomes erratic"
+    onset: gradual
+    ramp_min: 60
+    degraded_at: 0.3
+    stops_machine: false
+    effects:
+      - {sensor: cadence, kind: ramp,  magnitude: -0.4}
+      - {sensor: current, kind: noise, magnitude: 0.1}
+    repair: {skill: mechanic, minutes: 20, cost_eur: 60, action: repair, loto_required: true}
+
+  MOTOR_OVERCURRENT:
+    family: electrical
+    description: "Winding insulation degradation: current and heat rise"
+    onset: gradual
+    ramp_min: 40
+    degraded_at: 0.4
+    stops_machine: true
+    effects:
+      - {sensor: current,     kind: ramp, magnitude: 0.8}
+      - {sensor: temperature, kind: ramp, magnitude: 0.25}
+    repair: {skill: electrician, minutes: 60, cost_eur: 500, action: replace, loto_required: true}
+
+  PHASE_IMBALANCE:
+    family: electrical
+    description: "Supply phase imbalance: noisy current, extra vibration"
+    onset: gradual
+    ramp_min: 30
+    degraded_at: 0.3
+    stops_machine: true
+    effects:
+      - {sensor: current,   kind: noise, magnitude: 0.3}
+      - {sensor: vibration, kind: ramp,  magnitude: 0.4}
+    repair: {skill: electrician, minutes: 30, cost_eur: 120, action: repair, loto_required: true}
+
+  OVERHEATING:
+    family: thermal
+    description: "Lubrication or load problem: temperature climbs"
+    onset: gradual
+    ramp_min: 50
+    degraded_at: 0.5
+    stops_machine: true
+    effects:
+      - {sensor: temperature, kind: ramp, magnitude: 0.8}
+    repair: {skill: mechanic, minutes: 30, cost_eur: 90, action: repair, loto_required: true}
+
+  COOLING_FAILURE:
+    family: thermal
+    description: "Cooling fan / pump failure: sudden jump then fast rise"
+    onset: sudden
+    ramp_min: 20
+    degraded_at: 0.2
+    stops_machine: true
+    effects:
+      - {sensor: temperature, kind: step, magnitude: 0.3}
+      - {sensor: temperature, kind: ramp, magnitude: 0.6}
+    repair: {skill: electrician, minutes: 35, cost_eur: 220, action: replace, loto_required: true}
+
+  SENSOR_DRIFT:
+    family: sensor
+    description: "Temperature probe drifting: reading wrong, machine healthy (false alarm trap)"
+    onset: gradual
+    ramp_min: 180
+    degraded_at: 0.6
+    stops_machine: false
+    effects:
+      - {sensor: temperature, kind: offset, magnitude: 15.0}
+    repair: {skill: technician, minutes: 15, cost_eur: 40, action: repair, loto_required: false}
+
+  SENSOR_STUCK:
+    family: sensor
+    description: "Vibration sensor frozen: flat signal hides real problems"
+    onset: sudden
+    ramp_min: 1
+    degraded_at: 1.0
+    stops_machine: false
+    effects:
+      - {sensor: vibration, kind: stuck, magnitude: 0}
+    repair: {skill: technician, minutes: 15, cost_eur: 80, action: replace, loto_required: false}
+
+  CONVEYOR_JAM:
+    family: process
+    description: "Part jammed on the conveyor: line blocks immediately"
+    onset: sudden
+    ramp_min: 1
+    degraded_at: 0.0
+    stops_machine: true
+    effects:
+      - {sensor: cadence, kind: step, magnitude: -1.0}
+      - {sensor: current, kind: step, magnitude: 0.5}
+    repair: {skill: operator, minutes: 10, cost_eur: 0, action: repair, loto_required: true}
+
+  TOOL_WEAR:
+    family: process
+    description: "Cutting tool wear: more scrap, slight vibration and current increase"
+    onset: gradual
+    ramp_min: 240
+    degraded_at: 0.5
+    stops_machine: false
+    scrap_rate_max: 0.3
+    effects:
+      - {sensor: current,   kind: ramp, magnitude: 0.2}
+      - {sensor: vibration, kind: ramp, magnitude: 0.3}
+    repair: {skill: operator, minutes: 15, cost_eur: 70, action: replace, loto_required: true}

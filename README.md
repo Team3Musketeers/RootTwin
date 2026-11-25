@@ -26,6 +26,19 @@ Planning: [docs/Planning_Projet_IA_Usine_3D_v2.xlsx](docs/Planning_Projet_IA_Usi
 | **B** | Data & infra → fault injection → ML/DL detection → LLM copilot → RL benchmark |
 | **C** | API & 3D → RL environment & PPO → Play mode → integration & demo |
 
+## What is done (Person A)
+
+| Task | Deliverable | Where |
+|---|---|---|
+| **T01** Snapshot contract | Real-time state of the whole line for the 3D (`factory/line1/LINE/snapshot`, retained, not stored): machines (state, activity, cycle progress, buffer, sensors), parts on each conveyor with their position, orders, line KPIs (throughput, availability, OEE) | [roottwin/contracts.py](roottwin/contracts.py) (`Snapshot`), [docs/DATA_CONTRACTS.md](docs/DATA_CONTRACTS.md) |
+| **T03** SimPy line | Real-time (`simpy.rt`, speed changeable live, pause) **and** fast mode; 6 machines, 5 accumulating conveyors, resizable buffers, tracked parts, production orders, the 14 T33 commands, B's catalogue faults, maintenance, speed ↔ wear coupling; stops propagate (starved downstream, blocked upstream); NetworkX dependency graph = `machine_links` | [roottwin/sim/](roottwin/sim/), [docs/SIMULATION.md](docs/SIMULATION.md) |
+| **T06** Sensors | 4 sensors per machine from load, speed and wear (gamma-process wear, thermal lag, noise) + catalogue fault signatures, published on MQTT | [roottwin/sim/sensors.py](roottwin/sim/sensors.py) |
+| Dataset mode | `simulate_many(generate_scenarios(200))`: same columns as `faults/offline.py`, 8 h of line in ~2 s (200 scenarios ≈ 6 min, or `--jobs 4`) | `python -m roottwin.sim dataset` |
+| Tests | 42 tests: layout = DB seed, flow, bottleneck rate, propagation, every fault/maintenance path, every command, every message accepted by the ingestor, determinism, real-time speed/pause | `tests/test_sim_*.py` |
+
+Run: `python -m roottwin.sim live --time-scale 60 --order 500` (after `docker compose up -d`), then
+drive it through the command API. Without Docker: `python -m roottwin.sim live --no-mqtt --seconds 20 --order 200`.
+
 ## What is done (Person B)
 
 ### Days 1–2
@@ -99,7 +112,7 @@ Prerequisites: Docker Desktop (running), Python 3.11+.
 copy .env.example .env                          # optional, defaults work
 docker compose up -d --build                    # broker + DB + ingestor + command API
 pip install -e ".[dev]"                         # roottwin package + notebook/test tools
-python -m pytest -q                             # 53 tests
+python -m pytest -q                             # 95 tests (53 B + 42 A)
 
 python scripts/download_datasets.py             # ~23 MB into data/raw (git-ignored)
 python scripts/load_datasets.py                 # clean + load into TimescaleDB + data/processed
@@ -134,7 +147,8 @@ Check: `Get-Content scripts/check_db.sql | docker compose exec -T timescaledb ps
 docker-compose.yml           broker + DB + ingestor + command API
 infra/                       Mosquitto config, TimescaleDB schema
 roottwin/                    shared Python package
-  contracts.py               MQTT payloads + commands (single source of truth)
+  contracts.py               MQTT payloads + commands + snapshot (single source of truth)
+  sim/                       SimPy factory (A): layout + graph, machines/conveyors/orders, sensors & wear, live runner, CLI
   command_api.py             HTTP -> MQTT command relay (router mountable in C's API)
   mqtt.py                    publisher helper
   faults/                    fault catalogue (YAML), ActiveFault, scenarios, runner
@@ -152,13 +166,13 @@ tests/                       unit tests
 
 ## For the team
 
-- **Person A (simulation)**: subscribe to `factory/line1/+/cmd`, apply faults with
-  `ActiveFault(catalog[code], machine, start_min=env.now).apply(sensors, env.now)` and publish
-  `state_change` events when `.state()` changes. `scripts/publish_fake_data.py` is a complete working example.
-  Use `generate_scenarios(200, seed=42)` for dataset v1 (T12).
+- **Person A (simulation)**: done: `python -m roottwin.sim live` replaces `scripts/publish_fake_data.py`
+  (same topics and commands). Next: T12 workers + dataset v1, T14 calibration, T15 diagnosis on `build_graph()`.
+- **Person B (detection)**: train on the real simulation with `roottwin.sim.simulate_many(generate_scenarios(200, seed=42), jobs=4)`
+  (same columns as `faults/offline.py`). See [docs/SIMULATION.md](docs/SIMULATION.md#for-the-team).
 - **Person C (API / 3D)**: mount the relay: `from roottwin.command_api import router; app.include_router(router)`.
-  `GET /command/catalog` and `GET /command/faults` feed the control panel dropdowns. Until A's simulation is
-  ready, the stand-in line gives you live, controllable data.
+  `GET /command/catalog` and `GET /command/faults` feed the control panel dropdowns. The 3D reads the
+  retained snapshot `factory/line1/LINE/snapshot` (schema `roottwin.contracts.Snapshot`).
 - **Everyone**: contracts are in [docs/DATA_CONTRACTS.md](docs/DATA_CONTRACTS.md); change them only together.
 
 ## Next steps

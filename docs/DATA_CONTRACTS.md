@@ -11,6 +11,7 @@ factory/{line_id}/{machine_id}/telemetry    sensor values (one message, all sens
 factory/{line_id}/{machine_id}/event        discrete events (faults, alarms, state changes, repairs)
 factory/{line_id}/{machine_id}/production   parts produced since last message
 factory/{line_id}/{machine_id|LINE}/cmd     commands to the simulation (UI, RL agent, scenarios) — T33
+factory/{line_id}/LINE/snapshot             whole-line state for the 3D, 2×/real s, retained, NOT stored — T01/T03
 ```
 
 - Broker: `localhost:1883` (MQTT) or `ws://localhost:9001` (WebSocket). In Docker: `mosquitto:1883`.
@@ -36,10 +37,44 @@ Units: vibration mm/s, temperature °C, current A, cadence parts/min (table `sen
 - `state`: `ok` | `degraded` | `down` → green / orange / red in the 3D scene.
 - `severity`: 1 (info) … 5 (critical).
 
+Events published by the simulation (Person A, details in [SIMULATION.md](SIMULATION.md)):
+`fault_injected`, `state_change` (also `maintenance`), `failure`, `repair_start`, `repair_end`,
+`inspection`, `fault_cleared`, `order_started`, `order_completed`, `command_rejected`; every
+payload carries `sim_s` (simulated seconds).
+
 ### production
 ```json
 {"ts": "2026-11-24T10:05:00Z", "parts_ok": 3, "parts_scrap": 0}
 ```
+From the simulation: `parts_ok` = parts the machine processed without creating a defect,
+`parts_scrap` = defects created **by this machine** (removed later at quality control M5).
+Good parts out of the line = `parts_ok` of the last machine (M6).
+
+### snapshot (T01/T03, Person A)
+Live state of the whole line for the 3D scene (T08/T32) and the API, published by the simulation
+on `factory/{line}/LINE/snapshot` twice per real second, **QoS 0, retained** (a new subscriber
+gets the latest one at once). The ingestor validates it but does **not** store it.
+Schema: `roottwin/contracts.py` (`Snapshot`). Abridged:
+```json
+{"ts": "2026-11-25T10:00:00Z", "source": "sim", "line_id": "line1", "seq": 812,
+ "sim_time_s": 24360.0, "time_scale": 60.0, "status": "running",
+ "machines": [{"machine_id": "M3", "name": "Drilling", "machine_type": "drill", "position": 3,
+               "state": "degraded", "activity": "working", "speed_factor": 1.0, "health": 0.93,
+               "sensors": {"vibration": 4.1, "temperature": 47.2, "current": 12.3, "cadence": 28.0},
+               "active_faults": ["BEARING_WEAR"], "current_part": "P0001234", "cycle_progress": 0.4,
+               "buffer_in": 10, "buffer_in_capacity": 10, "parts_ok": 11870, "parts_scrap": 0,
+               "downtime_s": 0.0}, "…"],
+ "conveyors": [{"conveyor_id": "C3", "from_id": "M3", "to_id": "M4", "moving": true, "transit_s": 12,
+                "parts": [{"part_id": "P0001230", "order_id": "ORD-0001", "pos": 0.92, "defect": false}]}, "…"],
+ "orders": [{"order_id": "ORD-0001", "product": "A", "quantity": 20000, "released": 11950,
+             "completed": 11800, "scrap": 0, "status": "in_progress"}],
+ "kpis": {"parts_ok": 11800, "parts_scrap": 0, "wip": 150, "throughput_per_h": 1702.0,
+          "availability": 1.0, "performance": 0.99, "quality": 1.0, "oee": 0.99, "line_downtime_s": 0.0}}
+```
+- `state` → colour (ok green, degraded orange, down red, maintenance blue);
+  `activity` = working | starved | blocked | stopped | down | maintenance.
+- `pos` 0 → 1 along the belt, head first; interpolate between snapshots with `sim_time_s`.
+- `active_faults` is simulation ground truth: show it in teacher/debug views only, never feed it to the AI.
 
 ### cmd (T33)
 The UI, the RL agent and the scenario runner drive the simulation through the **same** commands,

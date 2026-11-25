@@ -21,6 +21,8 @@ dependencies = [
     "scikit-learn>=1.5",
     "joblib>=1.4",
     "matplotlib>=3.8",
+    "simpy>=4.1",                       # T03 factory simulation (Person A)
+    "networkx>=3.2",                    # T03 dependency graph, T15 diagnosis
 ]
 
 [project.optional-dependencies]
@@ -33,6 +35,7 @@ include = ["roottwin*"]
 
 [tool.setuptools.package-data]
 "roottwin.faults" = ["*.yaml"]
+"roottwin.sim" = ["*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

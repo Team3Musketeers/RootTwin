@@ -1,8 +1,8 @@
 """MQTT message contracts for the factory digital twin.
 
 Topic layout:  factory/{line_id}/{target}/{kind}
-    target = a machine id (M1..M6) or LINE for line-level commands
-    kind   = telemetry | event | production | cmd
+    target = a machine id (M1..M6) or LINE for line-level commands and the snapshot
+    kind   = telemetry | event | production | cmd | snapshot
 
 See docs/DATA_CONTRACTS.md for examples. Every publisher (simulation, UI/API,
 RL agent, scenario runner, enterprise connector, replayed dataset) follows
@@ -57,6 +57,96 @@ class Event(_Base):
 class Production(_Base):
     parts_ok: int = Field(default=0, ge=0)
     parts_scrap: int = Field(default=0, ge=0)
+
+
+# --------------------------------------------------------------------------
+# Real-time state snapshot (T01/T03, Person A). The simulation publishes the
+# whole line on factory/{line}/LINE/snapshot a few times per real second
+# (QoS 0, retained: a new subscriber gets the latest state at once). The 3D
+# scene (T08/T32) and the API read it; the ingestor does NOT store it, the
+# history is already in telemetry / event / production.
+# --------------------------------------------------------------------------
+
+Activity = Literal["working", "starved", "blocked", "stopped", "down", "maintenance"]
+LineStatus = Literal["running", "stopped", "paused"]
+OrderStatus = Literal["queued", "in_progress", "done"]
+
+
+class PartOnConveyor(BaseModel):
+    part_id: str
+    order_id: str | None = None
+    pos: float = Field(ge=0, le=1, description="0 = just left the upstream machine, 1 = at the next buffer")
+    defect: bool = False
+
+
+class ConveyorSnapshot(BaseModel):
+    conveyor_id: str
+    from_id: str
+    to_id: str
+    moving: bool = True
+    transit_s: float = Field(gt=0, description="simulated seconds to cross the belt")
+    parts: list[PartOnConveyor] = Field(default_factory=list, description="head (pos ~1) first")
+
+
+class MachineSnapshot(BaseModel):
+    machine_id: str
+    name: str = ""
+    machine_type: str = ""
+    position: int = Field(ge=1, description="order in the line (1 = first)")
+    state: MachineState = Field(description="colour in 3D: ok green, degraded orange, down red, "
+                                            "maintenance blue")
+    activity: Activity = Field(description="working | starved (no input) | blocked (output full) | "
+                                           "stopped | down | maintenance")
+    speed_factor: float = Field(ge=0.1, le=3.0)
+    health: float = Field(ge=0, le=1, description="1 = new, 0 = worn out (natural wear)")
+    sensors: dict[str, float] = Field(default_factory=dict, description="last telemetry values")
+    active_faults: list[str] = Field(default_factory=list, description="ground truth (simulation only)")
+    current_part: str | None = None
+    cycle_progress: float = Field(default=0, ge=0, le=1)
+    buffer_in: int = Field(default=0, ge=0, description="parts waiting in front of the machine")
+    buffer_in_capacity: int = Field(default=0, ge=0)
+    parts_ok: int = Field(default=0, ge=0, description="cumulative")
+    parts_scrap: int = Field(default=0, ge=0, description="cumulative, defects made by this machine")
+    downtime_s: float = Field(default=0, ge=0, description="simulated seconds down or in maintenance")
+
+
+class OrderSnapshot(BaseModel):
+    order_id: str
+    product: str
+    quantity: int = Field(ge=1)
+    released: int = Field(ge=0, description="parts started (replacements for scrap included)")
+    completed: int = Field(ge=0, description="good parts out of the line")
+    scrap: int = Field(ge=0)
+    status: OrderStatus
+
+
+class LineKpis(BaseModel):
+    parts_ok: int = Field(default=0, ge=0, description="good parts out of the last machine")
+    parts_scrap: int = Field(default=0, ge=0)
+    wip: int = Field(default=0, ge=0, description="parts inside the line")
+    throughput_per_h: float = Field(default=0, ge=0, description="good parts per simulated hour, last hour")
+    availability: float = Field(default=1, ge=0, le=1)
+    performance: float = Field(default=0, ge=0, le=1)
+    quality: float = Field(default=1, ge=0, le=1)
+    oee: float = Field(default=0, ge=0, le=1)
+    line_downtime_s: float = Field(default=0, ge=0,
+                                   description="planned time with at least one machine down / in maintenance")
+
+
+class Snapshot(_Base):
+    line_id: str
+    seq: int = Field(ge=0, description="increases by 1 per snapshot (detect drops / ordering)")
+    sim_time_s: float = Field(ge=0, description="simulated seconds since the simulation started")
+    time_scale: float = Field(ge=0, description="simulated seconds per real second (0 = as fast as possible)")
+    status: LineStatus
+    machines: list[MachineSnapshot] = Field(min_length=1, description="in line order")
+    conveyors: list[ConveyorSnapshot] = Field(default_factory=list)
+    orders: list[OrderSnapshot] = Field(default_factory=list, description="open orders + last finished ones")
+    kpis: LineKpis = Field(default_factory=LineKpis)
+
+
+def snapshot_topic(line_id: str) -> str:
+    return f"factory/{line_id}/{LINE_TARGET}/snapshot"
 
 
 # --------------------------------------------------------------------------
@@ -160,7 +250,7 @@ def command_topic(line_id: str, target: str, cmd: Command) -> str:
 class Topic(BaseModel):
     line_id: str
     machine_id: str
-    kind: Literal["telemetry", "event", "production", "cmd"]
+    kind: Literal["telemetry", "event", "production", "cmd", "snapshot"]
 
     @classmethod
     def parse(cls, topic: str) -> "Topic":
@@ -181,8 +271,13 @@ def to_rows(topic: str, raw: bytes | str) -> tuple[str, list[tuple], Topic]:
     on bad input so the caller can log and drop it.
     """
     t = Topic.parse(topic)
+    if t.kind == "snapshot":
+        if not t.is_line:
+            raise ValueError(f"snapshot is only valid on the {LINE_TARGET} target")
+        Snapshot.model_validate_json(raw)
+        return "snapshot", [], t  # live state stream for the 3D: validated, not stored
     if t.kind != "cmd" and t.is_line:
-        raise ValueError(f"{LINE_TARGET} is only valid for commands")
+        raise ValueError(f"{LINE_TARGET} is only valid for commands and the snapshot")
     if t.kind == "telemetry":
         m = Telemetry.model_validate_json(raw)
         rows = [(m.ts, t.machine_id, name, float(val), m.source, m.scenario_id)

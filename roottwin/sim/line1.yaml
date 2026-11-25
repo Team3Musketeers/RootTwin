@@ -1,0 +1,62 @@
+# Line 1 layout (T03, Person A): 6 machines in series, 5 conveyors, one input buffer per machine.
+#
+#   orders -> [raw] M1 -> C1 -> [buf] M2 -> C2 -> [buf] M3 -> C3 -> [buf] M4 -> C4 -> [buf] M5 -> C5 -> [buf] M6 -> out
+#
+# Ids, names, types and positions match infra/timescaledb/init/01_schema.sql (machines, machine_links).
+# M4 (welding, 2.1 s/part) is the bottleneck: ideal line rate = 60 / 2.1 = 28.6 parts/min.
+# Healthy telemetry stays close to the ranges B's first detectors were trained on
+# (vibration ~2 mm/s, temperature ~45 degC, current ~12 A, cadence ~30 parts/min).
+# Wear and sensor parameters are first guesses, calibrated on C-MAPSS / CWRU in T14.
+line_id: line1
+
+machines:
+  - machine_id: M1
+    name: Feeder
+    machine_type: feeder
+    position: 1
+    cycle_s: 1.8
+    input_buffer: 3                  # raw parts released by the orders
+    sensors: {vibration_mm_s: 1.6, current_full_a: 9.0, current_idle_a: 3.0, temp_rise_full_c: 20}
+
+  - machine_id: M2
+    name: CNC milling
+    machine_type: cnc
+    position: 2
+    cycle_s: 2.0
+    sensors: {vibration_mm_s: 2.4, current_full_a: 14.0, current_idle_a: 4.0, temp_rise_full_c: 25}
+
+  - machine_id: M3
+    name: Drilling
+    machine_type: drill
+    position: 3
+    cycle_s: 1.9
+    sensors: {vibration_mm_s: 2.2, current_full_a: 12.5, current_idle_a: 3.5, temp_rise_full_c: 24}
+
+  - machine_id: M4
+    name: Welding robot
+    machine_type: robot
+    position: 4
+    cycle_s: 2.1                     # bottleneck
+    cycle_cv: 0.08
+    sensors: {vibration_mm_s: 1.8, current_full_a: 15.0, current_idle_a: 4.5, temp_rise_full_c: 27}
+
+  - machine_id: M5
+    name: Quality control
+    machine_type: inspection         # removes defective parts from the flow
+    position: 5
+    cycle_s: 1.6
+    sensors: {vibration_mm_s: 1.2, current_full_a: 6.0, current_idle_a: 2.5, temp_rise_full_c: 15}
+
+  - machine_id: M6
+    name: Packaging
+    machine_type: packaging
+    position: 6
+    cycle_s: 1.9
+    sensors: {vibration_mm_s: 1.9, current_full_a: 10.0, current_idle_a: 3.0, temp_rise_full_c: 21}
+
+links:
+  - {conveyor_id: C1, from_id: M1, to_id: M2, transit_s: 10, slots: 8}
+  - {conveyor_id: C2, from_id: M2, to_id: M3, transit_s: 10, slots: 8}
+  - {conveyor_id: C3, from_id: M3, to_id: M4, transit_s: 12, slots: 10}
+  - {conveyor_id: C4, from_id: M4, to_id: M5, transit_s: 10, slots: 8}
+  - {conveyor_id: C5, from_id: M5, to_id: M6, transit_s: 8,  slots: 6}

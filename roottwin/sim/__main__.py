@@ -5,9 +5,9 @@ Live line (needs `docker compose up -d` for the MQTT broker):
     python -m roottwin.sim live --scenario scenarios/demo_bearing_M3.yaml --order 5000
     python -m roottwin.sim live --no-mqtt --seconds 20 --order 200        # no broker: prints the state
 
-Labelled dataset (no broker needed):
-    python -m roottwin.sim dataset --scenario scenarios/cascade_jam_overheat.yaml --out data/scenarios/cascade.parquet
-    python -m roottwin.sim dataset --generate 200 --seed 42 --jobs 4 --out data/scenarios/sim_v1.parquet
+Labelled dataset (no broker needed; --db loads it into TimescaleDB too):
+    python -m roottwin.sim dataset --scenario scenarios/cascade_jam_overheat.yaml --out data/processed/cascade.parquet
+    python -m roottwin.sim dataset --generate 200 --seed 42 --jobs 4 --db         # dataset v1 (T12)
 """
 from __future__ import annotations
 
@@ -107,15 +107,33 @@ def cmd_dataset(a: argparse.Namespace) -> None:
     else:
         scenarios = generate_scenarios(a.generate, seed=a.seed, duration_min=a.duration_min)
     t0 = time.perf_counter()
-    df = simulate_many(scenarios, jobs=a.jobs, layout=load_layout(a.layout), auto_repair=not a.no_auto_repair,
-                       repair_response_min=a.response_min)
+    kw = dict(layout=load_layout(a.layout), auto_repair=not a.no_auto_repair, repair_response_min=a.response_min)
+    if a.db:
+        from roottwin.sim.dataset import connect, generate_dataset
+
+        try:
+            conn = connect(a.db_url)
+        except Exception as exc:   # psycopg2.OperationalError
+            sys.exit(f"cannot reach TimescaleDB ({str(exc).strip()}). Start it with `docker compose up -d`.")
+
+        def progress(i: int, n: int) -> None:
+            if i % 10 == 0 or i == n:
+                print(f"  {i}/{n} scenarios loaded ({time.perf_counter() - t0:.0f}s)", flush=True)
+
+        try:
+            df = generate_dataset(scenarios, jobs=a.jobs, conn=conn, progress=progress, **kw)
+        finally:
+            conn.close()
+    else:
+        df = simulate_many(scenarios, jobs=a.jobs, **kw)
     out = Path(a.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     if out.suffix == ".csv":
         df.to_csv(out, index=False)
     else:
         df.to_parquet(out, index=False)
-    print(f"{len(scenarios)} scenario(s), {len(df):,} rows in {time.perf_counter() - t0:.1f}s -> {out}")
+    print(f"{len(scenarios)} scenario(s), {len(df):,} rows in {time.perf_counter() - t0:.1f}s -> {out}"
+          + (" + TimescaleDB" if a.db else ""))
     print(f"label=1: {df['label'].mean():.1%} of rows · states: {df['state'].value_counts().to_dict()}")
 
 
@@ -154,7 +172,9 @@ def main(argv: list[str] | None = None) -> None:
     ds.add_argument("--jobs", type=int, default=1, help="parallel processes")
     ds.add_argument("--no-auto-repair", action="store_true")
     ds.add_argument("--response-min", type=float, default=10.0)
-    ds.add_argument("--out", default="data/scenarios/sim_v1.parquet")
+    ds.add_argument("--out", default="data/processed/sim_v1.parquet")
+    ds.add_argument("--db", action="store_true", help="also load into TimescaleDB (idempotent)")
+    ds.add_argument("--db-url", default=None, help="default: $DATABASE_URL or the docker compose DB")
     ds.set_defaults(func=cmd_dataset)
 
     a = p.parse_args(argv)

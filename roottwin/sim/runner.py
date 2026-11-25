@@ -148,16 +148,26 @@ def simulate_scenario(scenario: Scenario, *, layout: LineLayout | None = None,
     return recorder.to_frame()
 
 
+def _simulate_indexed(args: tuple[Scenario, int, dict[str, Any]]):
+    from roottwin.sim.dataset import scenario_start
+
+    sc, index, kw = args
+    return simulate_scenario(sc, **{"start_ts": scenario_start(index), **kw})
+
+
 def simulate_many(scenarios: list[Scenario], jobs: int = 1, **kw):
-    """Several scenarios, optionally in parallel processes (each scenario has its own seed)."""
+    """Several scenarios, optionally in parallel processes (each scenario has its own seed).
+
+    Scenario i is placed on its own day (dataset.scenario_start), like in the database.
+    """
     import pandas as pd
 
+    args = [(sc, i, kw) for i, sc in enumerate(scenarios)]
     if jobs <= 1:
-        frames = [simulate_scenario(s, **kw) for s in scenarios]
+        frames = [_simulate_indexed(a) for a in args]
     else:
         from concurrent.futures import ProcessPoolExecutor
-        from functools import partial
 
         with ProcessPoolExecutor(max_workers=jobs) as pool:
-            frames = list(pool.map(partial(simulate_scenario, **kw), scenarios, chunksize=4))
+            frames = list(pool.map(_simulate_indexed, args, chunksize=4))
     return pd.concat(frames, ignore_index=True)

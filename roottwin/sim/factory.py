@@ -32,13 +32,12 @@ from roottwin.sim.layout import LineLayout, LinkConfig, MachineConfig, build_gra
 from roottwin.sim.primitives import Buffer, Gate, Signal, TimeShare
 from roottwin.sim.sensors import SensorModel, Wear
 from roottwin.sim.sinks import NullSink, Recorder, Sink
+from roottwin.sim.workers import INSPECT_MIN, REPAIR_ACTIONS, WorkerPool
 
 SEVERITY = {"ok": 1, "maintenance": 2, "degraded": 3, "down": 5}
 DEFAULT_REPAIR_MIN = 10.0     # repair asked on a machine with no active fault (check-up)
 PM_MIN = 20.0                 # preventive maintenance duration
 PM_COST_EUR = 80.0
-INSPECT_MIN = 5.0
-TRAVEL_MIN = 2.0              # worker travel for dispatch_worker (stand-in until T12 workers)
 REPAIR_WEAR_KEEP = 0.5        # a repair keeps half of the natural wear, a replacement none
 HALTS_CONVEYOR = {"CONVEYOR_JAM"}   # faults that also stop the machine's outgoing conveyor
 CADENCE_WINDOW_S = 60.0
@@ -97,13 +96,15 @@ class Machine:
         self.env = factory.env
         self.cfg = cfg
         self.id = cfg.machine_id
+        self.x = float(cfg.x_m or 0.0)
         self.inp = inp
         self.out: Conveyor | LineExit | None = None
         self.rng = np.random.default_rng([factory.seed, index])
         self.speed = 1.0
         self.stopped = False                  # stop_machine / start_machine
         self.maintenance: str | None = None   # action in progress (repair, replace, preventive_maintenance)
-        self._maintenance_pending = False     # worker on the way
+        self.maintenance_pending = False      # repair planned, worker queued or on the way
+        self.maint_window: tuple[float, float] | None = None   # (start, end) of the maintenance in progress
         self.faults: list[ActiveFault] = []
         self.wear = Wear(cfg.wear, self.rng)
         self.sensors = SensorModel(cfg.sensors, cfg.wear, self.rng)
@@ -280,18 +281,9 @@ class Machine:
                 self.inject(str(rng.choice(codes)), issued_by="spontaneous")
 
     # ------------------------------------------------------------------ maintenance
-    def start_maintenance(self, action: str, *, issued_by: str, command_id: str | None = None,
-                          worker_id: str | None = None, travel_min: float = 0.0) -> str | None:
-        if self.maintenance or self._maintenance_pending:
-            return f"{self.id} is already in maintenance"
-        self._maintenance_pending = True
-        self.env.process(self._maintain(action, issued_by, command_id, worker_id, travel_min))
-        return None
-
-    def _maintain(self, action: str, issued_by: str, command_id: str | None, worker_id: str | None,
-                  travel_min: float):
-        if travel_min > 0:
-            yield self.env.timeout(travel_min * 60.0)
+    def maintain(self, action: str, *, issued_by: str, command_id: str | None = None,
+                 worker_id: str | None = None, job_id: str | None = None):
+        """Generator: the intervention itself, once someone is at the machine (lock-out, repair, restart)."""
         codes = [af.code for af in self.faults]
         specs = [af.spec.repair for af in self.faults]
         fault_min = max((r.minutes for r in specs), default=0.0)
@@ -301,9 +293,11 @@ class Machine:
             minutes, cost = fault_min or DEFAULT_REPAIR_MIN, sum(r.cost_eur for r in specs)
             keep = 0.0 if action == "replace" or any(r.action == "replace" for r in specs) else REPAIR_WEAR_KEEP
         info = {"action": action, "minutes": minutes, "cost_eur": cost, "fault_codes": codes,
-                "decided_by": issued_by, "worker_id": worker_id, "command_id": command_id}
-        self._maintenance_pending = False
+                "loto_required": any(r.loto_required for r in specs), "decided_by": issued_by,
+                "worker_id": worker_id, "job_id": job_id, "command_id": command_id}
+        self.maintenance_pending = False
         self.maintenance = action
+        self.maint_window = (self.env.now, self.env.now + minutes * 60.0)
         self.f.emit_event(self.id, "repair_start", fault_code=codes[-1] if codes else None, severity=2,
                           payload=info)
         self.update_state()
@@ -311,18 +305,13 @@ class Machine:
         self.faults.clear()
         self.wear.reset(keep=keep)
         self.maintenance = None
+        self.maint_window = None
         self.f.emit_event(self.id, "repair_end", fault_code=codes[-1] if codes else None, severity=1,
                           payload=info)
         self.update_state()
 
-    def _auto_repair(self):
-        """Corrective policy for datasets: someone repairs a down machine after a response time."""
-        yield self.env.timeout(self.f.repair_response_min * 60.0)
-        if self.state == "down" and not self.maintenance and not self._maintenance_pending:
-            self.start_maintenance("repair", issued_by="baseline")
-
-    def _inspect(self, issued_by: str, command_id: str | None, worker_id: str | None):
-        yield self.env.timeout((TRAVEL_MIN + INSPECT_MIN) * 60.0)
+    def report_inspection(self, issued_by: str, command_id: str | None, worker_id: str | None) -> None:
+        """What an inspection finds (perfect inspection: the simulation's ground truth)."""
         now_min = self.env.now / 60.0
         found = [{"fault_code": af.code, "progress": round(af.progress(now_min), 3),
                   "state": af.state(now_min)} for af in self.faults]
@@ -330,6 +319,17 @@ class Machine:
                           severity=3 if found else 1,
                           payload={"found": found, "health": round(self.wear.health, 3),
                                    "decided_by": issued_by, "worker_id": worker_id, "command_id": command_id})
+
+    def _inspect_now(self, issued_by: str, command_id: str | None):
+        yield self.env.timeout(INSPECT_MIN * 60.0)
+        self.report_inspection(issued_by, command_id, None)
+
+    def _auto_repair(self):
+        """Corrective policy (datasets, --auto-repair): a down machine is reported after a response
+        time, then the nearest qualified worker is sent."""
+        yield self.env.timeout(self.f.repair_response_min * 60.0)
+        if self.state == "down" and not self.maintenance and not self.maintenance_pending:
+            self.f.request_intervention(self, "repair", issued_by="corrective")
 
     # ------------------------------------------------------------------ commands
     def apply(self, cmd: Command) -> str | None:
@@ -347,15 +347,11 @@ class Machine:
                                cmd.issued_by, cmd.command_id)
         elif c == "clear_fault":
             return self.clear_faults(cmd.issued_by)
-        elif c in ("repair", "preventive_maintenance"):
-            return self.start_maintenance(c, issued_by=cmd.issued_by, command_id=cmd.command_id)
+        elif c in ("repair", "preventive_maintenance"):        # nearest qualified worker
+            return self.f.request_intervention(self, c, issued_by=cmd.issued_by, command_id=cmd.command_id)
         elif c == "dispatch_worker":
-            action = p.get("action", "repair")
-            if action == "inspect":
-                self.env.process(self._inspect(cmd.issued_by, cmd.command_id, p.get("worker_id")))
-                return None
-            return self.start_maintenance(action, issued_by=cmd.issued_by, command_id=cmd.command_id,
-                                          worker_id=p.get("worker_id"), travel_min=TRAVEL_MIN)
+            return self.f.request_intervention(self, p.get("action", "repair"), issued_by=cmd.issued_by,
+                                               command_id=cmd.command_id, worker_id=p.get("worker_id"))
         else:
             return f"'{c}' is not a machine command"
         self.refresh()
@@ -399,7 +395,7 @@ class Machine:
             current_part=self.current.part_id if self.current else None, cycle_progress=round(progress, 4),
             buffer_in=len(self.inp), buffer_in_capacity=self.inp.capacity,
             parts_ok=self.processed - self.scrap_made, parts_scrap=self.scrap_made,
-            downtime_s=round(self.down_clock.total(), 1))
+            downtime_s=round(self.down_clock.total(), 1), x_m=self.x)
 
 
 class Conveyor:
@@ -553,6 +549,7 @@ class Factory:
         self.first = self.machines[order[0]]
         self.last = self.machines[order[-1]]
         self.ideal_cycle_s = max(m.cfg.cycle_s for m in self.machines.values())   # bottleneck
+        self.pool = WorkerPool(self, self.layout) if self.layout.workers else None   # T12
 
         self.env.process(self._feeder())
         self.env.process(self._telemetry())
@@ -610,7 +607,8 @@ class Factory:
                 m._prod = [0, 0]
             if self.recorder is not None:
                 codes = [af.code for af in m.faults]
-                self.recorder.record(scenario_id=self.scenario_id, t_min=round(now_min, 4), machine_id=m.id,
+                self.recorder.record(scenario_id=self.scenario_id, time=self.ts(), t_min=round(now_min, 4),
+                                     machine_id=m.id,
                                      **vals, state=m.state, fault_code=codes[-1] if codes else None,
                                      label=int(bool(codes)), activity=m.activity,
                                      health=round(m.wear.health, 4), speed_factor=m.speed)
@@ -687,6 +685,23 @@ class Factory:
         self.time_scale = float(scale)
         if self.on_time_scale:
             self.on_time_scale(self.time_scale)
+
+    def request_intervention(self, m: Machine, action: str, *, issued_by: str, command_id: str | None = None,
+                             worker_id: str | None = None) -> str | None:
+        """Send someone to a machine. With a team (layout `workers`) the WorkerPool plans it
+        (skills, walking, queues); without one an instant crew does it on the spot."""
+        if self.pool is not None:
+            return self.pool.request(m, action, issued_by=issued_by, command_id=command_id, worker_id=worker_id)
+        if worker_id is not None:
+            return f"this line has no workers (asked for {worker_id})"
+        if action == "inspect":
+            self.env.process(m._inspect_now(issued_by, command_id))
+            return None
+        if action in REPAIR_ACTIONS and (m.maintenance or m.maintenance_pending):
+            return f"{m.id} is already in maintenance or has a repair planned"
+        m.maintenance_pending = True
+        self.env.process(m.maintain(action, issued_by=issued_by, command_id=command_id))
+        return None
 
     def set_buffer_after(self, machine_id: str, capacity: int) -> str | None:
         nxt = list(self.graph.successors(machine_id))
@@ -771,4 +786,6 @@ class Factory:
                         sim_time_s=round(self.env.now, 3), time_scale=self.time_scale, status=self.status,
                         machines=[m.snapshot() for m in self.machines.values()],
                         conveyors=[c.snapshot() for c in self.conveyors.values()],
+                        workers=self.pool.snapshot() if self.pool else [],
+                        interventions_queued=len(self.pool.queue) if self.pool else 0,
                         orders=[o.snapshot() for o in open_orders + done], kpis=self.kpis())

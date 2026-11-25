@@ -13,12 +13,14 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 import networkx as nx
 import yaml
 from pydantic import BaseModel, Field, model_validator
 
 LAYOUT_PATH = Path(__file__).with_name("line1.yaml")
+Skill = Literal["mechanic", "electrician", "technician", "operator"]   # = repair.skill in the fault catalogue
 
 
 class SensorNominal(BaseModel, extra="forbid"):
@@ -69,8 +71,19 @@ class MachineConfig(BaseModel, extra="forbid"):
     cycle_s: float = Field(gt=0, description="processing time per part at speed 1.0")
     cycle_cv: float = Field(default=0.05, ge=0, lt=1, description="coefficient of variation of the cycle")
     input_buffer: int = Field(default=10, ge=0, le=200, description="parts that can wait in front of it")
+    x_m: float | None = Field(default=None, description="position along the line in metres "
+                                                       "(default: 10 m apart); walking times, 3D")
     sensors: SensorNominal
     wear: WearModel = Field(default_factory=WearModel)
+
+
+class WorkerConfig(BaseModel, extra="forbid"):
+    """A maintenance worker (T12). Skills match `repair.skill` in the fault catalogue."""
+    worker_id: str
+    name: str
+    skills: list[Skill] = Field(min_length=1)
+    speed_m_s: float = Field(default=1.2, gt=0, description="walking speed with tools")
+    home_x_m: float | None = Field(default=None, description="start position (default: the workshop)")
 
 
 class LinkConfig(BaseModel, extra="forbid"):
@@ -83,14 +96,23 @@ class LinkConfig(BaseModel, extra="forbid"):
 
 class LineLayout(BaseModel, extra="forbid"):
     line_id: str = "line1"
+    workshop_x_m: float = Field(default=-15.0, description="maintenance workshop: spare parts, workers' base")
     machines: list[MachineConfig] = Field(min_length=1)
     links: list[LinkConfig] = Field(default_factory=list)
+    workers: list[WorkerConfig] = Field(default_factory=list,
+                                        description="empty = an instant crew does every intervention")
 
     @model_validator(mode="after")
     def _check(self) -> "LineLayout":
         ids = [m.machine_id for m in self.machines]
         if len(set(ids)) != len(ids):
             raise ValueError("duplicate machine_id in layout")
+        wids = [w.worker_id for w in self.workers]
+        if len(set(wids)) != len(wids):
+            raise ValueError("duplicate worker_id in layout")
+        for m in self.machines:
+            if m.x_m is None:
+                m.x_m = (m.position - 1) * 10.0
         if len({l.conveyor_id for l in self.links}) != len(self.links):
             raise ValueError("duplicate conveyor_id in layout")
         for l in self.links:
@@ -131,7 +153,7 @@ def build_graph(layout: LineLayout) -> nx.DiGraph:
     g = nx.DiGraph(line_id=layout.line_id)
     for m in layout.machines:
         g.add_node(m.machine_id, name=m.name, machine_type=m.machine_type, position=m.position,
-                   cycle_s=m.cycle_s, input_buffer=m.input_buffer)
+                   cycle_s=m.cycle_s, input_buffer=m.input_buffer, x_m=m.x_m)
     for l in layout.links:
         g.add_edge(l.from_id, l.to_id, link_type="conveyor", conveyor_id=l.conveyor_id,
                    transit_s=l.transit_s, slots=l.slots)

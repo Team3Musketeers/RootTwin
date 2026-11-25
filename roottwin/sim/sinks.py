@@ -55,7 +55,7 @@ class MqttSink:
 class Recorder:
     """Labelled rows for dataset generation (T12) and model training."""
 
-    COLUMNS = ("scenario_id", "t_min", "machine_id", "vibration", "temperature", "current", "cadence",
+    COLUMNS = ("scenario_id", "time", "t_min", "machine_id", "vibration", "temperature", "current", "cadence",
                "state", "fault_code", "label", "activity", "health", "speed_factor")
 
     def __init__(self) -> None:

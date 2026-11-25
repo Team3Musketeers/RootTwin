@@ -38,9 +38,9 @@ Units: vibration mm/s, temperature °C, current A, cadence parts/min (table `sen
 - `severity`: 1 (info) … 5 (critical).
 
 Events published by the simulation (Person A, details in [SIMULATION.md](SIMULATION.md)):
-`fault_injected`, `state_change` (also `maintenance`), `failure`, `repair_start`, `repair_end`,
-`inspection`, `fault_cleared`, `order_started`, `order_completed`, `command_rejected`; every
-payload carries `sim_s` (simulated seconds).
+`fault_injected`, `state_change` (also `maintenance`), `failure`, `worker_dispatched`,
+`intervention_queued`, `repair_start`, `repair_end`, `inspection`, `fault_cleared`, `order_started`,
+`order_completed`, `command_rejected`; every payload carries `sim_s` (simulated seconds).
 
 ### production
 ```json
@@ -66,6 +66,10 @@ Schema: `roottwin/contracts.py` (`Snapshot`). Abridged:
                "downtime_s": 0.0}, "…"],
  "conveyors": [{"conveyor_id": "C3", "from_id": "M3", "to_id": "M4", "moving": true, "transit_s": 12,
                 "parts": [{"part_id": "P0001230", "order_id": "ORD-0001", "pos": 0.92, "defect": false}]}, "…"],
+ "workers": [{"worker_id": "W1", "name": "Mechanic", "skills": ["mechanic", "operator"], "state": "walking",
+              "x_m": 4.2, "target_machine": "M3", "action": "repair", "job_progress": 0.0, "queue": 0,
+              "busy_s": 1260.0}, "…"],
+ "interventions_queued": 1,
  "orders": [{"order_id": "ORD-0001", "product": "A", "quantity": 20000, "released": 11950,
              "completed": 11800, "scrap": 0, "status": "in_progress"}],
  "kpis": {"parts_ok": 11800, "parts_scrap": 0, "wip": 150, "throughput_per_h": 1702.0,
@@ -74,6 +78,8 @@ Schema: `roottwin/contracts.py` (`Snapshot`). Abridged:
 - `state` → colour (ok green, degraded orange, down red, maintenance blue);
   `activity` = working | starved | blocked | stopped | down | maintenance.
 - `pos` 0 → 1 along the belt, head first; interpolate between snapshots with `sim_time_s`.
+- `machines[].x_m` and `workers[].x_m`: same axis in metres (workshop at −15, M1 at 0 … M6 at 50).
+  Worker `state` = idle | walking | working (T12).
 - `active_faults` is simulation ground truth: show it in teacher/debug views only, never feed it to the AI.
 
 ### cmd (T33)

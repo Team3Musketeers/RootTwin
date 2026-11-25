@@ -181,8 +181,8 @@ def test_auto_repair_corrective_policy():
     f.create_order(BIG)
     f.apply_command("M2", cmd("inject_fault", fault_code="CONVEYOR_JAM"))   # down after 1 min
     f.env.run(until=60 + 600 + 30)
-    assert f.machines["M2"].state == "maintenance"
-    assert s.events("repair_start", "M2")[0]["payload"]["decided_by"] == "baseline"
+    assert f.machines["M2"].state == "maintenance"                          # + 21 s walk from the workshop
+    assert s.events("repair_start", "M2")[0]["payload"]["decided_by"] == "corrective"
     f.env.run(until=60 + 600 + 600 + 30)                                    # jam repair: 10 min
     assert f.machines["M2"].state == "ok"
 
@@ -243,9 +243,9 @@ def test_dispatch_worker_replace_after_travel_and_preventive_maintenance():
     run_for(f, 2 * 3600)
     assert f.machines["M4"].wear.value > 0
     assert f.apply_command("M4", cmd("dispatch_worker", action="replace", worker_id="W2")) is None
-    run_for(f, 60)
-    assert f.machines["M4"].state == "ok"                              # worker still walking
-    run_for(f, 2 * 60)
+    run_for(f, 30)
+    assert f.machines["M4"].state == "ok"                              # W2 walks 45 m at 1.2 m/s
+    run_for(f, 30)
     assert f.machines["M4"].state == "maintenance"
     assert s.events("repair_start", "M4")[0]["payload"]["worker_id"] == "W2"
     worn = f.machines["M4"].wear.value

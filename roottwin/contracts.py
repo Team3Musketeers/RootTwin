@@ -108,6 +108,21 @@ class MachineSnapshot(BaseModel):
     parts_ok: int = Field(default=0, ge=0, description="cumulative")
     parts_scrap: int = Field(default=0, ge=0, description="cumulative, defects made by this machine")
     downtime_s: float = Field(default=0, ge=0, description="simulated seconds down or in maintenance")
+    x_m: float = Field(default=0, description="position along the line (metres), same axis as workers")
+
+
+class WorkerSnapshot(BaseModel):
+    """A maintenance worker (T12): where they are and what they do."""
+    worker_id: str
+    name: str = ""
+    skills: list[str] = Field(default_factory=list)
+    state: Literal["idle", "walking", "working"]
+    x_m: float = Field(description="position along the line (metres), interpolated while walking")
+    target_machine: str | None = Field(default=None, description="machine of the current job")
+    action: str | None = Field(default=None, description="inspect | repair | replace | preventive_maintenance")
+    job_progress: float = Field(default=0, ge=0, le=1, description="share of the work done at the machine")
+    queue: int = Field(default=0, ge=0, description="jobs waiting for this worker")
+    busy_s: float = Field(default=0, ge=0, description="simulated seconds walking or working")
 
 
 class OrderSnapshot(BaseModel):
@@ -141,6 +156,8 @@ class Snapshot(_Base):
     status: LineStatus
     machines: list[MachineSnapshot] = Field(min_length=1, description="in line order")
     conveyors: list[ConveyorSnapshot] = Field(default_factory=list)
+    workers: list[WorkerSnapshot] = Field(default_factory=list)
+    interventions_queued: int = Field(default=0, ge=0, description="jobs waiting for any qualified worker")
     orders: list[OrderSnapshot] = Field(default_factory=list, description="open orders + last finished ones")
     kpis: LineKpis = Field(default_factory=LineKpis)
 

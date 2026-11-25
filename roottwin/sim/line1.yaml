@@ -8,12 +8,14 @@
 # (vibration ~2 mm/s, temperature ~45 degC, current ~12 A, cadence ~30 parts/min).
 # Wear and sensor parameters are first guesses, calibrated on C-MAPSS / CWRU in T14.
 line_id: line1
+workshop_x_m: -15          # maintenance workshop (spare parts, workers' base), metres along the line
 
 machines:
   - machine_id: M1
     name: Feeder
     machine_type: feeder
     position: 1
+    x_m: 0
     cycle_s: 1.8
     input_buffer: 3                  # raw parts released by the orders
     sensors: {vibration_mm_s: 1.6, current_full_a: 9.0, current_idle_a: 3.0, temp_rise_full_c: 20}
@@ -22,6 +24,7 @@ machines:
     name: CNC milling
     machine_type: cnc
     position: 2
+    x_m: 10
     cycle_s: 2.0
     sensors: {vibration_mm_s: 2.4, current_full_a: 14.0, current_idle_a: 4.0, temp_rise_full_c: 25}
 
@@ -29,6 +32,7 @@ machines:
     name: Drilling
     machine_type: drill
     position: 3
+    x_m: 20
     cycle_s: 1.9
     sensors: {vibration_mm_s: 2.2, current_full_a: 12.5, current_idle_a: 3.5, temp_rise_full_c: 24}
 
@@ -36,6 +40,7 @@ machines:
     name: Welding robot
     machine_type: robot
     position: 4
+    x_m: 30
     cycle_s: 2.1                     # bottleneck
     cycle_cv: 0.08
     sensors: {vibration_mm_s: 1.8, current_full_a: 15.0, current_idle_a: 4.5, temp_rise_full_c: 27}
@@ -44,6 +49,7 @@ machines:
     name: Quality control
     machine_type: inspection         # removes defective parts from the flow
     position: 5
+    x_m: 40
     cycle_s: 1.6
     sensors: {vibration_mm_s: 1.2, current_full_a: 6.0, current_idle_a: 2.5, temp_rise_full_c: 15}
 
@@ -51,6 +57,7 @@ machines:
     name: Packaging
     machine_type: packaging
     position: 6
+    x_m: 50
     cycle_s: 1.9
     sensors: {vibration_mm_s: 1.9, current_full_a: 10.0, current_idle_a: 3.0, temp_rise_full_c: 21}
 
@@ -60,3 +67,13 @@ links:
   - {conveyor_id: C3, from_id: M3, to_id: M4, transit_s: 12, slots: 10}
   - {conveyor_id: C4, from_id: M4, to_id: M5, transit_s: 10, slots: 8}
   - {conveyor_id: C5, from_id: M5, to_id: M6, transit_s: 8,  slots: 6}
+
+# Maintenance team (T12). Skills = repair.skill in roottwin/faults/catalog.yaml.
+# Every skilled worker can also do operator-level jobs (jams, tool changes).
+# Only W1 repairs mechanical faults: two mechanical failures at once make a queue,
+# which is what the dispatch decisions (RL agent, Play mode) are about.
+workers:
+  - {worker_id: W1, name: Mechanic,    skills: [mechanic, operator]}
+  - {worker_id: W2, name: Electrician, skills: [electrician, operator]}
+  - {worker_id: W3, name: Technician,  skills: [technician, operator]}
+  - {worker_id: W4, name: Operator,    skills: [operator]}

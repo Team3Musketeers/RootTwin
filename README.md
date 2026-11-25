@@ -33,8 +33,9 @@ Planning: [docs/Planning_Projet_IA_Usine_3D_v2.xlsx](docs/Planning_Projet_IA_Usi
 | **T01** Snapshot contract | Real-time state of the whole line for the 3D (`factory/line1/LINE/snapshot`, retained, not stored): machines (state, activity, cycle progress, buffer, sensors), parts on each conveyor with their position, orders, line KPIs (throughput, availability, OEE) | [roottwin/contracts.py](roottwin/contracts.py) (`Snapshot`), [docs/DATA_CONTRACTS.md](docs/DATA_CONTRACTS.md) |
 | **T03** SimPy line | Real-time (`simpy.rt`, speed changeable live, pause) **and** fast mode; 6 machines, 5 accumulating conveyors, resizable buffers, tracked parts, production orders, the 14 T33 commands, B's catalogue faults, maintenance, speed ↔ wear coupling; stops propagate (starved downstream, blocked upstream); NetworkX dependency graph = `machine_links` | [roottwin/sim/](roottwin/sim/), [docs/SIMULATION.md](docs/SIMULATION.md) |
 | **T06** Sensors | 4 sensors per machine from load, speed and wear (gamma-process wear, thermal lag, noise) + catalogue fault signatures, published on MQTT | [roottwin/sim/sensors.py](roottwin/sim/sensors.py) |
-| Dataset mode | `simulate_many(generate_scenarios(200))`: same columns as `faults/offline.py`, 8 h of line in ~2 s (200 scenarios ≈ 6 min, or `--jobs 4`) | `python -m roottwin.sim dataset` |
-| Tests | 42 tests: layout = DB seed, flow, bottleneck rate, propagation, every fault/maintenance path, every command, every message accepted by the ingestor, determinism, real-time speed/pause | `tests/test_sim_*.py` |
+| **T12** Workers | 4 maintenance workers as SimPy agents: walk along the line, skills from the catalogue (one mechanic, one electrician, one technician, one operator), personal + shared job queues, spare parts fetched at the workshop; `repair`, `preventive_maintenance`, `dispatch_worker` and the corrective policy all go through them; workers in the snapshot | [roottwin/sim/workers.py](roottwin/sim/workers.py), [docs/SIMULATION.md](docs/SIMULATION.md#workers-t12) |
+| **T12** Dataset v1 | 200 scenarios × 8 h replayed on the real line with the team + corrective repairs → `data/processed/sim_v1.parquet` (same columns as `faults/offline.py`) **and TimescaleDB** (`scenario_id LIKE 'GEN-42-%'`, one day per scenario from 2026-02-02, repairs in `interventions`) | `python -m roottwin.sim dataset --generate 200 --seed 42 --jobs 4 --db`, [roottwin/sim/dataset.py](roottwin/sim/dataset.py) |
+| Tests | 55 tests: layout = DB seed, flow, bottleneck rate, propagation, every fault/maintenance path, every command, workers (skills, queues, nearest, spare parts), every message accepted by the ingestor, dataset rows, determinism, real-time speed/pause | `tests/test_sim_*.py` |
 
 Run: `python -m roottwin.sim live --time-scale 60 --order 500` (after `docker compose up -d`), then
 drive it through the command API. Without Docker: `python -m roottwin.sim live --no-mqtt --seconds 20 --order 200`.
@@ -112,7 +113,7 @@ Prerequisites: Docker Desktop (running), Python 3.11+.
 copy .env.example .env                          # optional, defaults work
 docker compose up -d --build                    # broker + DB + ingestor + command API
 pip install -e ".[dev]"                         # roottwin package + notebook/test tools
-python -m pytest -q                             # 95 tests (53 B + 42 A)
+python -m pytest -q                             # 108 tests (53 B + 55 A)
 
 python scripts/download_datasets.py             # ~23 MB into data/raw (git-ignored)
 python scripts/load_datasets.py                 # clean + load into TimescaleDB + data/processed
@@ -167,9 +168,10 @@ tests/                       unit tests
 ## For the team
 
 - **Person A (simulation)**: done: `python -m roottwin.sim live` replaces `scripts/publish_fake_data.py`
-  (same topics and commands). Next: T12 workers + dataset v1, T14 calibration, T15 diagnosis on `build_graph()`.
-- **Person B (detection)**: train on the real simulation with `roottwin.sim.simulate_many(generate_scenarios(200, seed=42), jobs=4)`
-  (same columns as `faults/offline.py`). See [docs/SIMULATION.md](docs/SIMULATION.md#for-the-team).
+  (same topics and commands), workers and dataset v1 (T12). Next: T14 calibration, T15 diagnosis on `build_graph()`.
+- **Person B (detection)**: dataset v1 = `data/processed/sim_v1.parquet` (rebuild it with
+  `python -m roottwin.sim dataset --generate 200 --seed 42 --jobs 4 --db`), same columns as `sim_v0`
+  before rolling features: point the training scripts to it. See [docs/SIMULATION.md](docs/SIMULATION.md#for-the-team).
 - **Person C (API / 3D)**: mount the relay: `from roottwin.command_api import router; app.include_router(router)`.
   `GET /command/catalog` and `GET /command/faults` feed the control panel dropdowns. The 3D reads the
   retained snapshot `factory/line1/LINE/snapshot` (schema `roottwin.contracts.Snapshot`).

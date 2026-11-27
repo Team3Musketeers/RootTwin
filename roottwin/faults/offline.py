@@ -2,7 +2,7 @@
 
 A stand-in for the real simulation's dataset generation (T12) so detectors can
 be trained/evaluated on OUR fault signatures today. Same nominal values and
-noise as scripts/publish_fake_data.py; faults applied with ActiveFault.
+noise as roottwin/line.py; faults applied with ActiveFault.
 Replace with Person A's simulation output once dataset v1 exists.
 """
 from __future__ import annotations

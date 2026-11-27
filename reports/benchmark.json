@@ -1,0 +1,62 @@
+{
+ "n_shifts": 100,
+ "shift_min": 480,
+ "summary": [
+  {
+   "strategy": "corrective",
+   "downtime_min": 159.64,
+   "downtime_std": 70.216,
+   "parts_ok": 304.45,
+   "total_cost": 8738.6,
+   "profit": -2649.6,
+   "interventions": 4.27,
+   "downtime_gain_vs_corrective": 0.0
+  },
+  {
+   "strategy": "preventive",
+   "downtime_min": 158.48,
+   "downtime_std": 57.99,
+   "parts_ok": 317.48,
+   "total_cost": 8669.7,
+   "profit": -2320.1,
+   "interventions": 4.8,
+   "downtime_gain_vs_corrective": 0.007
+  },
+  {
+   "strategy": "condition",
+   "downtime_min": 157.04,
+   "downtime_std": 58.632,
+   "parts_ok": 328.27,
+   "total_cost": 8520.48,
+   "profit": -1955.08,
+   "interventions": 6.94,
+   "downtime_gain_vs_corrective": 0.016
+  },
+  {
+   "strategy": "ortools",
+   "downtime_min": 181.92,
+   "downtime_std": 45.549,
+   "parts_ok": 320.11,
+   "total_cost": 9911.28,
+   "profit": -3509.08,
+   "interventions": 8.24,
+   "downtime_gain_vs_corrective": -0.14
+  },
+  {
+   "strategy": "ppo",
+   "downtime_min": 181.72,
+   "downtime_std": 78.253,
+   "parts_ok": 287.47,
+   "total_cost": 9842.28,
+   "profit": -4092.88,
+   "interventions": 6.09,
+   "downtime_gain_vs_corrective": -0.138
+  }
+ ],
+ "ppo_vs_best_rule": {
+  "best_rule": "condition",
+  "mean_diff_min": 24.68,
+  "ppo_better_shifts": 41,
+  "ties": 1
+ }
+}

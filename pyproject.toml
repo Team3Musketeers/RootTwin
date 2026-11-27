@@ -13,6 +13,7 @@ dependencies = [
     "pyyaml>=6",
     "fastapi>=0.115",
     "uvicorn>=0.30",
+    "websockets>=12",                  # uvicorn needs it for WS /ws
     "psycopg2-binary>=2.9",
     "pandas>=2.2",
     "numpy>=1.26",

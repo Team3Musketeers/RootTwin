@@ -66,10 +66,33 @@ so a human and the AI are comparable and every run is replayable. The simulation
 Schema: `roottwin/contracts.py` (`Command`). HTTP relay: `POST /command/{line}/{target}` on
 `http://localhost:8001` (Swagger at `/docs`), `GET /command/catalog`, `GET /command/faults`.
 
+### snapshot (for the 3D view, not stored)
+Topic `twin/{line_id}/snapshot` (outside `factory/#`, so the ingestor ignores it), ~5 per real second,
+published by the line (`scripts/run_line.py`, later Person A's simulation). The API relays it on `WS /ws`.
+
+```json
+{"t_min": 125.4, "running": true, "time_scale": 60, "order": {"id": "ORD-1", "left": 340},
+ "machines": [{"id": "M3", "status": "working", "state": "degraded", "speed": 1.0, "enabled": true,
+               "wear": 0.31, "worker": null, "faults": ["BEARING_WEAR"], "down_min": 12.0}],
+ "buffers": [{"index": 0, "level": 3, "capacity": 5}],
+ "workers": [{"id": "W1", "skill": "mechanic", "pos": 2.4, "task": {"machine": 2, "kind": "repair", "phase": "walk"}}],
+ "parts": [{"id": 812, "where": "machine", "index": 2, "progress": 0.4},
+           {"id": 813, "where": "buffer", "index": 1, "slot": 0}],
+ "sensors": {"M3": {"vibration": 3.1, "temperature": 47.2, "current": 12.4, "cadence": 29.5}},
+ "kpi": {"parts_ok": 105, "parts_scrap": 2, "throughput_per_h": 50.2, "availability": 0.91,
+         "line_down_min": 11.0, "mttr_min": 18.0, "total_cost": 900.0, "profit": 1200.0}}
+```
+`status`: working · idle · starved · blocked · down · maintenance · stopped. `state` (ok/degraded/down)
+is the ground-truth health from the fault model; the UI may show it, the AI agents never see it.
+
+### alarm event (live detector)
+`factory/{line}/{M}/event` with `event_type = "alarm"`, `fault_code` = best candidate, and `payload`
+`{score, threshold, explanation, contributions, candidates, root_cause, is_root_cause, copilot}`.
+
 ### Fault catalogue (T09)
 `roottwin/faults/catalog.yaml` — 11 faults in 5 families (mechanical, electrical, thermal, sensor,
 process) with their sensor signature, onset, time to failure, repair skill/time/cost and LOTO flag.
-The simulation applies them with `ActiveFault.apply()` / `.state()`; see `scripts/publish_fake_data.py`
+The simulation applies them with `ActiveFault.apply()` / `.state()`; see `roottwin/line.py` (`Machine.faults`, `Line.sensors`)
 for a working example.
 
 Invalid messages are logged and dropped by the ingestor (they never reach the DB).

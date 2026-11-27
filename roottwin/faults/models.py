@@ -93,7 +93,7 @@ class ActiveFault:
 
     def progress(self, now_min: float) -> float:
         ramp = self.ramp_min or self.spec.ramp_min
-        return float(np.clip((now_min - self.start_min) / ramp, 0.0, 1.0))
+        return min(max((now_min - self.start_min) / ramp, 0.0), 1.0)   # not np.clip: 50x slower on scalars
 
     def state(self, now_min: float) -> State:
         p = self.progress(now_min)

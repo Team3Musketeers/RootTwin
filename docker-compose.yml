@@ -78,6 +78,51 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Main API + 3D front-end: http://localhost:8000  (Swagger: /docs)
+  api:
+    build:
+      context: .
+      dockerfile: services/app/Dockerfile
+    image: roottwin-app
+    container_name: twin-api
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      MQTT_HOST: mosquitto
+      DATABASE_URL: postgresql://${POSTGRES_USER:-twin}:${POSTGRES_PASSWORD:-twin_dev_password}@timescaledb:5432/${POSTGRES_DB:-twin}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      - ./models:/app/models:ro
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Production line (stand-in for Person A's simulation until it exists)
+  line:
+    image: roottwin-app
+    container_name: twin-line
+    # add "--random-faults" for wear-driven breakdowns; off by default so the demo is controlled from the UI
+    command: ["python", "scripts/run_line.py", "--start"]
+    environment:
+      MQTT_HOST: mosquitto
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+
+  # Live detector: telemetry -> explained alarms
+  detector:
+    image: roottwin-app
+    container_name: twin-detector
+    command: ["python", "-m", "roottwin.live_detector"]
+    environment:
+      MQTT_HOST: mosquitto
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+
 volumes:
   mosquitto-data:
   mosquitto-log:

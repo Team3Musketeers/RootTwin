@@ -3,11 +3,27 @@
 export type V3 = [number, number, number];
 export type PartCategory = "mechanical" | "electrical" | "actuator" | "sensor" | "structural" | "tooling";
 
-export interface Geo {
-  kind: "box" | "cyl" | "cone" | "sphere" | "torus" | "gear" | "capsule";
-  /** box: [w,h,d] · cyl: [rTop,rBottom,h] · cone: [r,h] · sphere: [r] · torus: [R,tube] · gear: [r,width,teeth] · capsule: [r,len] */
-  args: number[];
-}
+/** Declarative CAD shape, turned into a mesh by scene3d/cad.ts. All units metres, axes: cylinders/lathe/motor/bearing along +y. */
+export type Shape =
+  | { kind: "rbox"; size: V3; r?: number }                                     // filleted block (castings, panels)
+  | { kind: "cyl"; r: number; r2?: number; h: number; seg?: number }
+  | { kind: "sphere"; r: number }
+  | { kind: "torus"; R: number; r: number }
+  | { kind: "lathe"; pts: [number, number][] }                                  // turned part from (radius, y) profile
+  | { kind: "gear"; m: number; z: number; w: number; helix?: number; bore?: number }   // involute gear, axis z
+  | { kind: "motor"; r: number; len: number }                                   // finned AC motor
+  | { kind: "bearing"; ri: number; ro: number; w: number; n?: number; taper?: boolean }
+  | { kind: "bolts"; radius: number; n: number; size?: number }
+  | { kind: "tube"; pts: V3[]; r: number; corrugated?: boolean }              // hose, cable, pipe
+  | { kind: "helix"; r: number; pitch: number; turns: number; wire: number }   // spring, auger flight
+  | { kind: "tslot"; len: number; s?: number }                                 // aluminium profile along x
+  | { kind: "extrude"; outline: [number, number][]; depth: number; bevel?: number }   // filleted plate/link in XY, depth z
+  | { kind: "compound"; items: { shape: Shape; pos?: V3; rot?: V3 }[] };
+
+export type MatName =
+  | "robotOrange" | "robotYellow" | "graphite" | "castIron" | "steel" | "chrome" | "brushedAlu" | "anodized" | "copper" | "brass"
+  | "rubber" | "glass" | "smokedGlass" | "sheetWhite" | "sheetGrey" | "paintBlue" | "paintRed" | "paintGreen" | "safetyYellow"
+  | "cabinet" | "plasticBlack" | "wood" | "belt" | "perforated" | "ledGreen" | "ledRed" | "ledBlue" | "ledWhite" | "screen" | "laser" | "oil";
 
 /** Pose of a part relative to its parent, computed every frame from the machine runtime. */
 export interface Motion { pos?: V3; rot?: V3 }
@@ -21,15 +37,15 @@ export interface Part {
   description: string;
   maintenanceNotes: string;
   specs?: Record<string, string>;
-  geo: Geo;
+  geo: Shape;
+  mat: MatName;                  // PBR material preset (scene3d/materials.ts)
+  housing?: boolean;             // outer casing: turns to glass in X-ray / cutaway mode
+  tolerance?: string;            // e.g. "Ø40 k6", "±0.02 mm"
   pos: V3;                       // mounted position = joint/pivot (relative to parent part or machine origin)
   rot?: V3;
   meshPos?: V3;                  // geometry offset from the pivot (e.g. an arm link extends from its joint)
   meshRot?: V3;
-  color: string;
-  metalness?: number;
-  roughness?: number;
-  opacity?: number;
+  color?: string;                // optional tint over the material preset
   explodeVector: V3;             // direction * distance of the part when fully exploded (relative to parent)
   explodeOrder: number;          // 0 = peels away first (outer housings), higher = later (inner shafts, bearings)
   assemblyAxis: "X" | "Y" | "Z";

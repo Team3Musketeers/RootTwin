@@ -4,7 +4,7 @@ import { useLive } from "./api";
 import Play from "./Play";
 import { CAMERA_PRESETS, cameraApi, TwinCanvas, type CameraPreset } from "./scene3d/TwinCanvas";
 import type { ViewMode, ViewState } from "./scene3d/context";
-import { pushFault, useBackendSync } from "./twin/backend";
+import { pushFault, useBackendSync } from "./services/productionBridge";
 import { MACHINE, machineOfPart } from "./twin/registry";
 import { TwinSim } from "./twin/sim";
 import type { Fault } from "./twin/types";
@@ -31,6 +31,7 @@ export default function App() {
   const [explode, setExplode] = useState(0.6);
   const [guides, setGuides] = useState(true);
   const [labels, setLabels] = useState(true);
+  const [xray, setXray] = useState(false);
   const [quality, setQuality] = useState(true);
   const [tab, setTab] = useState<Tab>("controls");
   const [left, setLeft] = useState(() => window.innerWidth > 1350);      // keep 75-80 % of the screen for the 3D view
@@ -76,7 +77,7 @@ export default function App() {
   // keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).closest("input, select, textarea")) return;
+      if ((e.target as HTMLElement).closest?.("input, select, textarea")) return;
       const k = e.key.toLowerCase();
       if (k === " ") { e.preventDefault();
         if (machine) sim.setMachine(machine, sim.rt[machine].status === "RUN" ? "HOLD" : "RUN");
@@ -85,6 +86,7 @@ export default function App() {
       else if (k === "i" && machine) changeMode(mode === "factory" ? "isolate" : "factory");
       else if (k === "f") { const f = sim.faults[0]; if (f) locate(f); else if (part) framePart(); else if (machine) cameraApi.fit(machine); }
       else if (k === "r") cameraApi.preset(preset);
+      else if (k === "x") setXray((x) => !x);
       else if (k === "escape") { if (mode !== "factory") changeMode("factory"); else selectMachine(null); }
     };
     window.addEventListener("keydown", onKey);
@@ -92,9 +94,9 @@ export default function App() {
   });
 
   const view: ViewState = useMemo(() => ({
-    sim, mode, machine, part, hoverPart, explode, guides, labels, quality,
+    sim, mode, machine, part, hoverPart, explode, guides, xray, labels, quality,
     selectMachine, selectPart, hover: setHover, isolate,
-  }), [sim, mode, machine, part, hoverPart, explode, guides, labels, quality, selectMachine, selectPart, isolate]);
+  }), [sim, mode, machine, part, hoverPart, explode, guides, xray, labels, quality, selectMachine, selectPart, isolate]);
 
   const health = sim.health(), k = sim.kpis(), crit = sim.faults.filter((f) => f.severity === "critical");
   const first = crit[0] ?? sim.faults[0];
@@ -118,6 +120,8 @@ export default function App() {
               <button key={m} onClick={() => changeMode(m)} disabled={m !== "factory" && !machine} aria-pressed={mode === m}
                       className={`px-2 py-0.5 disabled:opacity-40 ${mode === m ? "bg-sky-600" : "hover:bg-white/10"}`}>{l}</button>))}
           </div>
+          <button onClick={() => setXray(!xray)} aria-pressed={xray} title="X-ray / cutaway: housings turn to glass (X)"
+                  className={`rounded border border-white/10 px-2 py-0.5 text-xs ${xray ? "bg-cyan-600" : "hover:bg-white/10"}`}>⌗ X-ray</button>
           <select value={preset} aria-label="Camera preset" onChange={(e) => { const p = e.target.value as CameraPreset; setPreset(p); cameraApi.preset(p); }}
                   className="rounded border border-white/10 bg-slate-900 px-1.5 py-0.5 text-xs">
             {Object.entries(CAMERA_PRESETS).map(([id, c]) => <option key={id} value={id}>📷 {c.label}</option>)}
@@ -151,13 +155,13 @@ export default function App() {
             </div>
             {right && <RightPanel sim={sim} tab={tab} setTab={setTab} machine={machine} part={part} explode={explode}
               setExplode={(e) => { setExplode(e); if (machine && mode !== "exploded") setMode("exploded"); }}
-              guides={guides} labels={labels} toggleGuides={() => setGuides(!guides)} toggleLabels={() => setLabels(!labels)}
+              guides={guides} xray={xray} toggleXray={() => setXray(!xray)} labels={labels} toggleGuides={() => setGuides(!guides)} toggleLabels={() => setLabels(!labels)}
               onIsolate={() => machine && isolate(machine)} onExploded={() => changeMode(mode === "exploded" ? "isolate" : "exploded")}
               onPart={(id) => { setPart(id); setTimeout(() => cameraApi.fit(id, 2.5), 30); }} onLocate={locate} onFramePart={framePart}
               onInject={inject} onClear={clear} animateAssembly={animateAssembly} reset={resetSim} />}
           </aside>
           <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded bg-slate-950/70 px-2 py-1 text-[10px] text-slate-400">
-            Click = select · double-click = isolate · Space run/pause · E exploded · I isolate · F locate fault · R reset camera · Esc back
+            Click = select · double-click = isolate · Space run/pause · E exploded · X x-ray · I isolate · F locate fault · R reset camera · Esc back
           </div>
         </main>
       )}

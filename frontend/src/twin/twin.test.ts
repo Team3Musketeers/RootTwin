@@ -23,6 +23,15 @@ describe("model", () => {
     expect(MACHINES.length).toBeGreaterThanOrEqual(11);                     // 8 machine types incl. 3 AGVs + conveyors
   });
 
+  it("CAD quality gate: 15+ parts per machine, real shapes, housings for X-ray", () => {
+    for (const m of MACHINES) {
+      const parts = allParts(m);
+      expect(parts.length, m.id).toBeGreaterThanOrEqual(15);
+      const plain = parts.filter((p) => p.geo.kind === "rbox" || p.geo.kind === "cyl").length;
+      expect(plain / parts.length, `${m.id} too many primitive parts`).toBeLessThan(0.6);
+      if (m.type !== "agv") expect(parts.some((p) => p.housing), `${m.id} has no X-ray housing`).toBe(true);
+    }
+  });
   it("explode progress is staggered and bounded", () => {
     expect(explodeProgress(0, 0, 5)).toBe(0);
     expect(explodeProgress(1, 5, 5)).toBe(1);

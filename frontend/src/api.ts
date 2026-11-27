@@ -17,10 +17,16 @@ export interface BackendMachine { id: string; status: string; state: string; fau
 export interface BackendSnapshot {
   t_min: number; running: boolean; machines: BackendMachine[];
   sensors?: Record<string, Record<string, number>>; kpi: Record<string, number>;
+  components?: Record<string, BackendComponent[]>;        // backend machine id -> per-component state
+}
+export interface BackendComponent {
+  id: string; name: string; kind: string; health: number;
+  channels: Record<string, { value: number; unit: string }>;
+  fault: { code: string; state: string; progress: number } | null;
 }
 export interface BackendEvent {
   machine_id: string; event_type: string; fault_code?: string | null; state?: string | null;
-  payload?: { explanation?: string; root_cause?: string; is_root_cause?: boolean;
+  payload?: { explanation?: string; root_cause?: string; is_root_cause?: boolean; component?: string | null;
     copilot?: { text: string; sources: string[]; mode: string } | null; candidates?: { fault_code: string; match: number }[] };
 }
 

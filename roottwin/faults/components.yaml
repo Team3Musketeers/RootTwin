@@ -1,0 +1,91 @@
+# Component catalogue: which physical component of each line machine carries each fault.
+# Single source of truth shared by the line engine (component telemetry in the snapshot), the
+# component-labelled dataset (scripts/make_component_dataset.py) and the 3D twin: `id` is the part id
+# of the CAD model in frontend/src/twin/machines/*.ts (checked by tests/test_components.py).
+#
+# Per component:
+#   kind      mechanical | electrical | sensor | actuator | tooling | hydraulic
+#   channels  local measurement channels, as {name: [machine sensor, nominal, unit]}:
+#             the component reading follows the machine sensor's relative deviation, and gets the
+#             full fault signature only when that component is the faulted one (localisation).
+#   faults    backend fault codes (faults/catalog.yaml) located on this component. The first
+#             component listing a code wins; unlisted codes fall back to the machine's first component.
+machines:
+  M1:
+    asset: VIS
+    type: vision_portal
+    name: Infeed vision & laser inspection portal
+    components:
+      - {id: VIS.cam,    name: Inspection camera (5 MP),        kind: sensor,   faults: [SENSOR_DRIFT],
+         channels: {image_sharpness: [cadence, 98.0, "%"], housing_temp: [temperature, 41.0, "°C"]}}
+      - {id: VIS.laser,  name: Laser line profiler,             kind: sensor,   faults: [SENSOR_STUCK],
+         channels: {laser_power: [current, 4.8, "mW"], diode_temp: [temperature, 38.0, "°C"]}}
+      - {id: VIS.pusher, name: Pneumatic reject pusher,         kind: actuator, faults: [CONVEYOR_JAM, BELT_SLIP],
+         channels: {stroke_time: [cadence, 180.0, "ms"], air_pressure: [current, 6.0, "bar"]}}
+  M2:
+    asset: CNC
+    type: cnc_machining_centre
+    name: CNC vertical machining centre
+    components:
+      - {id: CNC.spbrg,   name: Spindle bearing set (7014 P4),  kind: mechanical, faults: [BEARING_WEAR, MISALIGNMENT],
+         channels: {vibration: [vibration, 1.6, "mm/s"], bearing_temp: [temperature, 42.0, "°C"]}}
+      - {id: CNC.spmotor, name: Spindle motor 15 kW,            kind: electrical, faults: [OVERHEATING, MOTOR_OVERCURRENT, PHASE_IMBALANCE],
+         channels: {current: [current, 24.0, "A"], winding_temp: [temperature, 68.0, "°C"]}}
+      - {id: CNC.cutter,  name: Carbide end mill D16,           kind: tooling,    faults: [TOOL_WEAR],
+         channels: {cutting_force: [current, 1.2, "kN"], flank_wear: [vibration, 0.05, "mm"]}}
+      - {id: CNC.pump,    name: Coolant pump,                   kind: hydraulic,  faults: [COOLING_FAILURE],
+         channels: {flow: [cadence, 40.0, "l/min"], coolant_temp: [temperature, 24.0, "°C"]}}
+      - {id: CNC.door,    name: Door safety interlock,          kind: sensor,     faults: [SENSOR_STUCK, SENSOR_DRIFT],
+         channels: {switch_current: [current, 10.0, "mA"]}}
+  M3:
+    asset: PRS
+    type: gearbox_press
+    name: Gearbox drive & hydraulic press
+    components:
+      - {id: PRS.brgIn, name: Input tapered roller bearing,     kind: mechanical, faults: [BEARING_WEAR, OVERHEATING],
+         channels: {vibration: [vibration, 2.2, "mm/s"], bearing_temp: [temperature, 52.0, "°C"]}}
+      - {id: PRS.gMid,  name: Intermediate helical gear,        kind: mechanical, faults: [MISALIGNMENT],
+         channels: {mesh_vibration: [vibration, 2.8, "mm/s"], oil_temp: [temperature, 55.0, "°C"]}}
+      - {id: PRS.cyl,   name: Hydraulic cylinder,               kind: hydraulic,  faults: [COOLING_FAILURE],
+         channels: {pressure: [current, 180.0, "bar"], oil_temp: [temperature, 47.0, "°C"]}}
+      - {id: PRS.motor, name: Drive motor 22 kW,                kind: electrical, faults: [MOTOR_OVERCURRENT, PHASE_IMBALANCE],
+         channels: {current: [current, 38.0, "A"], winding_temp: [temperature, 64.0, "°C"]}}
+      - {id: PRS.psens, name: Pressure transducer,              kind: sensor,     faults: [SENSOR_DRIFT, SENSOR_STUCK],
+         channels: {signal: [current, 12.0, "mA"]}}
+  M4:
+    asset: WLD
+    type: robotic_welding_cell
+    name: Dual-robot welding cell
+    components:
+      - {id: WLD.B.j3m,    name: Robot B J3 servo motor,        kind: electrical, faults: [MOTOR_OVERCURRENT, PHASE_IMBALANCE],
+         channels: {current: [current, 6.5, "A"], winding_temp: [temperature, 58.0, "°C"]}}
+      - {id: WLD.A.j2r,    name: Robot A J2 harmonic reducer,   kind: mechanical, faults: [BEARING_WEAR, MISALIGNMENT],
+         channels: {vibration: [vibration, 1.1, "mm/s"], grease_temp: [temperature, 44.0, "°C"]}}
+      - {id: WLD.A.nozzle, name: Robot A torch contact tip,     kind: tooling,    faults: [TOOL_WEAR],
+         channels: {arc_current: [current, 220.0, "A"], tip_temp: [temperature, 310.0, "°C"]}}
+      - {id: WLD.psuA,     name: Welding power source A,        kind: electrical, faults: [OVERHEATING, COOLING_FAILURE],
+         channels: {output_current: [current, 220.0, "A"], heatsink_temp: [temperature, 52.0, "°C"]}}
+      - {id: WLD.clampL,   name: Fixture clamp (left),          kind: actuator,   faults: [SENSOR_DRIFT, SENSOR_STUCK, CONVEYOR_JAM, BELT_SLIP],
+         channels: {clamp_time: [cadence, 0.4, "s"], air_pressure: [current, 6.0, "bar"]}}
+  M5:
+    asset: PAL
+    type: palletizing_robot
+    name: Palletizing robot & outfeed
+    components:
+      - {id: PAL.R.tool,  name: Vacuum gripper,                 kind: actuator,   faults: [CONVEYOR_JAM, BELT_SLIP],
+         channels: {vacuum: [current, -0.75, "bar"], cycle: [cadence, 6.0, "s"]}}
+      - {id: PAL.R.j2m,   name: J2 servo motor,                 kind: electrical, faults: [OVERHEATING, MOTOR_OVERCURRENT],
+         channels: {current: [current, 9.0, "A"], winding_temp: [temperature, 61.0, "°C"]}}
+      - {id: PAL.R.base,  name: J1 base bearing / reducer,      kind: mechanical, faults: [BEARING_WEAR, MISALIGNMENT],
+         channels: {vibration: [vibration, 1.4, "mm/s"], grease_temp: [temperature, 46.0, "°C"]}}
+      - {id: PAL.scanner, name: Safety laser scanner,           kind: sensor,     faults: [SENSOR_STUCK, SENSOR_DRIFT],
+         channels: {contamination: [vibration, 2.0, "%"]}}
+  M6:
+    asset: CNV
+    type: belt_conveyor_line
+    name: Main line conveyors
+    components:
+      - {id: CNV.s2.motor,   name: "Conveyor #2 drive motor",     kind: electrical, faults: [CONVEYOR_JAM, MOTOR_OVERCURRENT],
+         channels: {current: [current, 3.2, "A"], winding_temp: [temperature, 47.0, "°C"]}}
+      - {id: CNV.s3.tension, name: "Conveyor #3 tension sensor",  kind: sensor,     faults: [SENSOR_DRIFT, SENSOR_STUCK, BELT_SLIP],
+         channels: {belt_tension: [current, 850.0, "N"], belt_speed: [cadence, 0.6, "m/s"]}}

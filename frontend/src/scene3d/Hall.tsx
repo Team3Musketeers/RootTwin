@@ -1,12 +1,53 @@
-// Factory hall: reflective epoxy floor with markings, steel columns & roof trusses, light fixtures, cable trays,
+// Factory hall: dark epoxy floor (wear texture, yellow markings, hazard zones), open-top steel columns, light fixtures, cable trays,
 // walls, high-bay racks, safety fences, catwalk. Repetitive elements are instanced (drei <Instances> = InstancedMesh).
 import { useMemo } from "react";
+import * as THREE from "three";
 import { Instance, Instances, Line, MeshReflectorMaterial } from "@react-three/drei";
 import { AGV_PATH, HALL, RACK } from "../twin/layout";
 
 const W = HALL.x1 - HALL.x0, D = HALL.z1 - HALL.z0, CX = (HALL.x0 + HALL.x1) / 2, CZ = (HALL.z0 + HALL.z1) / 2;
 
+// procedural epoxy: dark resin, aggregate speckle, tyre scuffs and wear patches (tiled across the hall)
+function epoxyTexture() {
+  const c = document.createElement("canvas"); c.width = c.height = 1024;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#2a3039"; g.fillRect(0, 0, 1024, 1024);
+  let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (let i = 0; i < 26000; i++) { const v = 34 + rnd() * 30; g.fillStyle = `rgba(${v},${v + 4},${v + 10},${0.25 + rnd() * 0.35})`; g.fillRect(rnd() * 1024, rnd() * 1024, 1.6, 1.6); }
+  for (let i = 0; i < 18; i++) {                 // wear patches
+    const x = rnd() * 1024, y = rnd() * 1024, r = 60 + rnd() * 160, gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, "rgba(90,96,104,0.22)"); gr.addColorStop(1, "rgba(90,96,104,0)"); g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r);
+  }
+  g.lineCap = "round";
+  for (let i = 0; i < 40; i++) {                 // tyre scuffs
+    g.strokeStyle = `rgba(8,10,14,${0.12 + rnd() * 0.18})`; g.lineWidth = 3 + rnd() * 6;
+    const x = rnd() * 1024, y = rnd() * 1024, a = rnd() * Math.PI;
+    g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + Math.cos(a) * 120, y + Math.sin(a) * 40, x + Math.cos(a) * 260, y + Math.sin(a) * 160); g.stroke();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(W / 8, D / 8); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  return t;
+}
+function hazardTexture() {
+  const c = document.createElement("canvas"); c.width = c.height = 128;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#111"; g.fillRect(0, 0, 128, 128); g.fillStyle = "#facc15";
+  for (let i = -128; i < 256; i += 64) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + 32, 0); g.lineTo(i + 160, 128); g.lineTo(i + 128, 128); g.fill(); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+// hazard-striped keep-out borders [cx, cz, w, d] around the press, welding cell and palletizer
+const HAZARD: [number, number, number, number][] = [[-1, 0, 4.6, 5.2], [14, 0, 7.4, 8.2], [24.5, -1.2, 7.8, 7.4]];
+
 function Floor({ quality }: { quality: boolean }) {
+  const epoxy = useMemo(epoxyTexture, []);
+  const strips = useMemo(() => {             // each border strip gets its own texture clone so the stripe repeat follows its length
+    const base = hazardTexture();
+    return HAZARD.flatMap(([cx, cz, w, d]) => [[cx, cz - d / 2, w, 0], [cx, cz + d / 2, w, 0], [cx - w / 2, cz, d, Math.PI / 2], [cx + w / 2, cz, d, Math.PI / 2]].map(([x, z, len, rot]) => {
+      const tex = base.clone(); tex.repeat.set(len / 0.6, 1); tex.needsUpdate = true;
+      return { x, z, a: len, b: 0.16, rot, tex };
+    }));
+  }, []);
   const agvLoop = useMemo(() => [...AGV_PATH, AGV_PATH[0]].map(([x, z]) => [x, 0.012, z] as [number, number, number]), []);
   return (
     <group>
@@ -14,13 +55,17 @@ function Floor({ quality }: { quality: boolean }) {
         <planeGeometry args={[W, D]} />
         {quality
           ? <MeshReflectorMaterial resolution={512} mixBlur={1} mixStrength={2.2} blur={[300, 80]} roughness={0.75} depthScale={0.4}
-                                   minDepthThreshold={0.4} maxDepthThreshold={1.2} color="#3a4250" metalness={0.35} mirror={0.35} />
-          : <meshStandardMaterial color="#3a4250" roughness={0.6} metalness={0.2} />}
+                                   minDepthThreshold={0.4} maxDepthThreshold={1.2} map={epoxy} color="#aab2bd" metalness={0.2} mirror={0.3} />
+          : <meshStandardMaterial map={epoxy} color="#aab2bd" roughness={0.55} metalness={0.1} />}
       </mesh>
       {/* walkway lines and AGV guide path */}
       {[-4.2, 4.2].map((z) => (
         <mesh key={z} rotation-x={-Math.PI / 2} position={[-5, 0.008, z]}><planeGeometry args={[58, 0.12]} /><meshBasicMaterial color="#facc15" /></mesh>
       ))}
+      {strips.map(({ x, z, a, b, rot, tex }, i) => (
+        <mesh key={i} rotation={[-Math.PI / 2, 0, rot]} position={[x, 0.009, z]}>
+          <planeGeometry args={[a, b]} /><meshStandardMaterial map={tex} roughness={0.7} polygonOffset polygonOffsetFactor={-2} />
+        </mesh>))}
       <Line points={agvLoop} color="#22d3ee" lineWidth={2} dashed dashSize={0.6} gapSize={0.4} transparent opacity={0.6} />
     </group>
   );
@@ -32,7 +77,6 @@ function Structure() {
     for (let x = HALL.x0; x <= HALL.x1 + 0.1; x += 10) for (const z of [HALL.z0 + 0.3, HALL.z1 - 0.3]) out.push([x, HALL.height / 2, z]);
     return out;
   }, []);
-  const trussX = useMemo(() => cols.filter((_, i) => i % 2 === 0).map((c) => c[0]), [cols]);
   const lights = useMemo(() => {
     const out: [number, number, number][] = [];
     for (let x = HALL.x0 + 5; x < HALL.x1; x += 10) for (let z = HALL.z0 + 5; z < HALL.z1; z += 7) out.push([x, HALL.height - 1.6, z]);
@@ -45,20 +89,7 @@ function Structure() {
         <meshStandardMaterial color="#1e3a8a" metalness={0.6} roughness={0.4} />
         {cols.map((p, i) => <Instance key={i} position={p} />)}
       </Instances>
-      {/* roof trusses: top & bottom chords + verticals */}
-      <Instances limit={400}>
-        <boxGeometry args={[0.16, 0.16, 1]} />
-        <meshStandardMaterial color="#64748b" metalness={0.7} roughness={0.35} />
-        {trussX.flatMap((x) => [
-          <Instance key={`t${x}`} position={[x, HALL.height - 0.2, CZ]} scale={[1, 1, D]} />,
-          <Instance key={`b${x}`} position={[x, HALL.height - 1.3, CZ]} scale={[1, 1, D]} />,
-          ...Array.from({ length: 16 }, (_, i) => (
-            <Instance key={`v${x}${i}`} position={[x, HALL.height - 0.75, HALL.z0 + 1 + i * 2]} scale={[1, 6.8, 0.6]} rotation={[0, 0, 0]} />)),
-        ])}
-        {/* purlins along x */}
-        {Array.from({ length: 9 }, (_, i) => (
-          <Instance key={`p${i}`} position={[CX, HALL.height - 0.1, HALL.z0 + 1.5 + i * 3.6]} rotation={[0, Math.PI / 2, 0]} scale={[1, 1, W]} />))}
-      </Instances>
+      {/* open-top hall: no roof trusses / purlins, so orbit and top-down cameras are never obstructed */}
       {/* LED high-bay fixtures */}
       <Instances limit={64}>
         <boxGeometry args={[1.4, 0.1, 0.35]} />

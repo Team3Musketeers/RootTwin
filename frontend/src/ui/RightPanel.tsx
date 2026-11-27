@@ -1,6 +1,7 @@
 // Right panel: context-aware Controls (line vs machine), Exploded view / BOM, Diagnostics; component learning card.
 import { useState } from "react";
 import { api } from "../api";
+import { liveComponents } from "../services/productionBridge";
 import { MACHINE, allParts, partById } from "../twin/registry";
 import type { TwinSim } from "../twin/sim";
 import type { Fault, MachineRuntime, Part } from "../twin/types";
@@ -23,7 +24,11 @@ function defaultTelemetry(p: Part, rt: MachineRuntime, fault?: Fault): Record<st
 export function PartCard({ sim, part, onLocate }: { sim: TwinSim; part: Part; onLocate: () => void }) {
   const m = Object.values(MACHINE).find((x) => allParts(x).includes(part))!;
   const rt = sim.rt[m.id], fault = sim.partFault(part.id);
-  const tele = { ...defaultTelemetry(part, rt, fault), ...(part.telemetry?.(rt) ?? {}) };
+  const live = liveComponents.get(part.id);             // backend component telemetry wins when connected
+  const tele = live
+    ? Object.fromEntries(Object.entries(live.channels).map(([k, c]) => [k.replace(/_/g, " "), `${c.value.toFixed(2)} ${c.unit}`]))
+    : { ...defaultTelemetry(part, rt, fault), ...(part.telemetry?.(rt) ?? {}) };
+  const health = live ? live.health : fault ? (fault.severity === "critical" ? 12 : 48) : Math.max(70, 100 - (rt.cycles % 300) / 10);
   const [answer, setAnswer] = useState<{ text: string; sources: string[]; mode: string } | null>(null);
   const ask = () => api("/copilot/ask", { question: `How do I repair the ${part.name}?`, fault_codes: m.faults.find((f) => f.partId === part.id)?.backendCodes?.slice(0, 1) ?? [],
     alert_text: fault?.label }).then(setAnswer).catch((e) => setAnswer({ text: `Copilot unavailable (${e.message}) - the backend API is not running.`, sources: [], mode: "blocked" }));
@@ -34,6 +39,12 @@ export function PartCard({ sim, part, onLocate }: { sim: TwinSim; part: Part; on
           <div className="font-mono text-[10px] text-sky-300">{part.partNumber} · {part.category} · axis {part.assemblyAxis}</div>
           <h3 className="text-sm font-semibold text-white">{part.name}</h3>
           <div className="text-[11px] text-slate-400">{m.name} · {part.material}</div>
+          <div className="mt-1 flex flex-wrap gap-1 text-[10px]">
+            <span className={`rounded px-1.5 ${fault || health < 60 ? "bg-red-600/40 text-red-100" : "bg-emerald-700/40 text-emerald-200"}`}>health {health.toFixed(0)} %</span>
+            <span className="rounded bg-slate-800 px-1.5 text-slate-400">{live ? "● live backend" : "○ local model"}</span>
+            {part.tolerance && <span className="rounded bg-slate-800 px-1.5 font-mono text-slate-300">tol. {part.tolerance}</span>}
+            {part.housing && <span className="rounded bg-cyan-900/50 px-1.5 text-cyan-200">housing · X-ray</span>}
+          </div>
         </div>
         <Btn c="ghost" onClick={onLocate} title="Frame this part in 3D">⌖</Btn>
       </div>
@@ -53,7 +64,7 @@ export function PartCard({ sim, part, onLocate }: { sim: TwinSim; part: Part; on
 
 interface Props {
   sim: TwinSim; tab: Tab; setTab: (t: Tab) => void; machine: string | null; part: string | null; explode: number;
-  setExplode: (e: number) => void; guides: boolean; labels: boolean; toggleGuides: () => void; toggleLabels: () => void;
+  setExplode: (e: number) => void; guides: boolean; xray: boolean; toggleXray: () => void; labels: boolean; toggleGuides: () => void; toggleLabels: () => void;
   onIsolate: () => void; onExploded: () => void; onPart: (id: string) => void; onLocate: (f: Fault) => void; onFramePart: () => void;
   onInject: (machineId: string, code: string) => void; onClear: (f: Fault) => void; animateAssembly: () => void; reset: () => void;
 }
@@ -88,7 +99,7 @@ function LineControls({ sim, reset }: { sim: TwinSim; reset: () => void }) {
   );
 }
 
-function MachineControls({ sim, id, explode, setExplode, onIsolate, onExploded }: { sim: TwinSim; id: string; explode: number; setExplode: (e: number) => void; onIsolate: () => void; onExploded: () => void }) {
+function MachineControls({ sim, id, explode, setExplode, onIsolate, onExploded, onXray }: { sim: TwinSim; id: string; explode: number; setExplode: (e: number) => void; onIsolate: () => void; onExploded: () => void; onXray: () => void }) {
   const m = MACHINE[id], rt = sim.rt[id];
   return (
     <div className="space-y-3">
@@ -104,6 +115,7 @@ function MachineControls({ sim, id, explode, setExplode, onIsolate, onExploded }
         <Btn c="sky" onClick={onIsolate}>◎ Isolate</Btn>
       </div>
       <Btn c="amber" className="w-full" onClick={onExploded}>✳ Toggle exploded view (vue éclatée)</Btn>
+      <Btn c="ghost" className="w-full" onClick={onXray}>⌗ X-ray / cutaway (X)</Btn>
       {m.controls.map((c) => (
         <ValueControl key={c.key} label={c.label} unit={c.unit} min={c.min} max={c.max} step={c.step} value={rt.set[c.key] ?? 0} actual={rt.act[c.key]} onChange={(v) => sim.setValue(id, c.key, v)} />
       ))}
@@ -124,6 +136,7 @@ function Exploded(p: Props) {
       </div>
       <div className="flex gap-3 text-[11px] text-slate-300">
         <label className="flex items-center gap-1"><input type="checkbox" checked={p.guides} onChange={p.toggleGuides} className="accent-sky-500" /> axis guide lines</label>
+        <label className="flex items-center gap-1"><input type="checkbox" checked={p.xray} onChange={p.toggleXray} className="accent-sky-500" /> X-ray housings</label>
         <label className="flex items-center gap-1"><input type="checkbox" checked={p.labels} onChange={p.toggleLabels} className="accent-sky-500" /> part callouts</label>
       </div>
       <table className="w-full text-[11px]">
@@ -205,7 +218,7 @@ export function RightPanel(p: Props) {
         {part && <PartCard sim={p.sim} part={part} onLocate={p.onFramePart} />}
         <div className="text-xs font-semibold text-slate-300">{p.tab === "controls" ? (p.machine ? MACHINE[p.machine].name : "Whole production line") : ""}</div>
         {p.tab === "controls" && (p.machine
-          ? <MachineControls sim={p.sim} id={p.machine} explode={p.explode} setExplode={p.setExplode} onIsolate={p.onIsolate} onExploded={p.onExploded} />
+          ? <MachineControls sim={p.sim} id={p.machine} explode={p.explode} setExplode={p.setExplode} onIsolate={p.onIsolate} onExploded={p.onExploded} onXray={p.toggleXray} />
           : <LineControls sim={p.sim} reset={p.reset} />)}
         {p.tab === "exploded" && <Exploded {...p} />}
         {p.tab === "diagnostics" && <Diagnostics {...p} />}

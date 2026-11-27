@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 import pandas as pd
 import paho.mqtt.client as mqtt
 
+from roottwin.components import component_for
 from roottwin.copilot import Copilot
 from roottwin.detection.events import threshold_for_false_alarms
 from roottwin.detection.explain import AlertExplainer
@@ -122,6 +123,7 @@ class LiveDetector:
                             "explanation": e.text, "contributions": e.contributions,
                             "candidates": [{"fault_code": c, "match": m} for c, m in e.candidates],
                             "root_cause": root, "is_root_cause": root == machine,
+                            "component": component_for(machine, codes[0]) if codes else None,   # suspected part (3D locate)
                             "copilot": advice}}
 
 

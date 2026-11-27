@@ -1,50 +1,48 @@
-// Material flow: conveyor rollers, workpieces (instanced, coloured by process stage), pallet, AGVs with their loads, welding arcs.
+// Material flow: CAD workpiece blanks (instanced, tinted by process stage), Euro pallets, pallet, AGVs with their loads, welding arcs.
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { BELT_Y, ST } from "../twin/layout";
-import { SEGMENTS } from "../twin/machines/line";
+import { euroPallet } from "../twin/machines/line";
 import { PAL_PALLET } from "../twin/machines/cells";
 import { MACHINE, AGV_IDS } from "../twin/registry";
 import { palletSlot, type WpKind } from "../twin/sim";
+import type { MatName, Shape } from "../twin/types";
+import { geometryFor } from "./cad";
 import { objects, useView } from "./context";
+import { makeMaterial } from "./materials";
 import { MachineView } from "./MachineView";
 
-const KIND_COLOR: Record<WpKind, THREE.Color> = {
-  raw: new THREE.Color("#8b5a2b"), machined: new THREE.Color("#cbd5e1"), pressed: new THREE.Color("#60a5fa"), welded: new THREE.Color("#f97316"),
-};
 const tmp = new THREE.Object3D(), v3 = new THREE.Vector3();
 
-function Rollers() {
-  const v = useView();
-  const ref = useRef<THREE.InstancedMesh>(null);
-  const rollers = useMemo(() => SEGMENTS.flatMap((s) => {
-    const n = Math.floor((s.x1 - s.x0) / 0.25);
-    return Array.from({ length: n }, (_, i) => s.x0 + 0.125 + i * 0.25);
-  }), []);
-  useFrame(() => {
-    const m = ref.current;
-    if (!m) return;
-    const a = (v.sim.rt.CNV.phase.belt ?? 0) / 0.05;
-    rollers.forEach((x, i) => {
-      tmp.position.set(x, BELT_Y - 0.06, 0); tmp.rotation.set(Math.PI / 2, a, 0); tmp.updateMatrix();
-      m.setMatrixAt(i, tmp.matrix);
-    });
-    m.instanceMatrix.needsUpdate = true;
-    m.visible = v.mode === "factory" || v.machine === "CNV";
-  });
-  return (
-    <instancedMesh ref={ref} args={[undefined, undefined, rollers.length]}>
-      <cylinderGeometry args={[0.04, 0.04, 0.84, 10]} />
-      <meshStandardMaterial color="#9ca3af" metalness={0.85} roughness={0.25} />
-    </instancedMesh>
-  );
+// CAD load shapes: a machined housing blank (raw casting -> machined -> pressed bushing -> welded bracket), Euro pallet loads
+const BLANK: Shape = { kind: "compound", items: [
+  { shape: { kind: "rbox", size: [0.5, 0.26, 0.42], r: 0.04 }, pos: [0, -0.12, 0] },
+  { shape: { kind: "cyl", r: 0.13, h: 0.16, seg: 32 }, pos: [0, 0.07, 0] },
+  { shape: { kind: "torus", R: 0.13, r: 0.018 }, pos: [0, 0.15, 0], rot: [Math.PI / 2, 0, 0] },
+  { shape: { kind: "cyl", r: 0.03, h: 0.27, seg: 12 }, pos: [0.19, -0.12, 0.15] },
+  { shape: { kind: "cyl", r: 0.03, h: 0.27, seg: 12 }, pos: [-0.19, -0.12, -0.15] },
+] };
+const RAW_LOAD: Shape = { kind: "compound", items: [
+  ...[[-0.3, -0.2], [0.3, -0.2], [-0.3, 0.2], [0.3, 0.2]].map(([x, z]) => ({ shape: { kind: "rbox", size: [0.52, 0.3, 0.36], r: 0.05 } as Shape, pos: [x, 0.3, z] as [number, number, number] })),
+] };
+const CARTON: Shape = { kind: "rbox", size: [1.12, 0.58, 0.76], r: 0.03 }, WRAP: Shape = { kind: "rbox", size: [1.16, 0.62, 0.8], r: 0.05 };   // cartons + stretch film
+const BLANK_COLOR: Record<WpKind, THREE.Color> = {     // tints over brushed aluminium
+  raw: new THREE.Color("#6b5a4a"), machined: new THREE.Color("#ffffff"), pressed: new THREE.Color("#9cc3ff"), welded: new THREE.Color("#ffb37a"),
+};
+
+function Load({ shape, mat, tint, ...rest }: { shape: Shape; mat: MatName; tint?: string; position?: [number, number, number] }) {
+  const geometry = useMemo(() => geometryFor(shape), [shape]);
+  const material = useMemo(() => makeMaterial(mat, tint), [mat, tint]);
+  return <mesh geometry={geometry} material={material} castShadow receiveShadow {...rest} />;
 }
 
 function Workpieces() {
   const v = useView();
   const ref = useRef<THREE.InstancedMesh>(null);
   const CAP = 160;
+  const geometry = useMemo(() => geometryFor(BLANK), []);
+  const material = useMemo(() => makeMaterial("brushedAlu"), []);
   useFrame(() => {
     const m = ref.current;
     if (!m) return;
@@ -58,7 +56,7 @@ function Workpieces() {
       else continue;
       tmp.rotation.set(0, 0, 0); tmp.scale.setScalar(1); tmp.updateMatrix();
       m.setMatrixAt(n, tmp.matrix);
-      m.setColorAt(n, KIND_COLOR[w.kind]);
+      m.setColorAt(n, BLANK_COLOR[w.kind]);
       n++;
     }
     m.count = n;
@@ -67,10 +65,7 @@ function Workpieces() {
     m.visible = v.mode === "factory";
   });
   return (
-    <instancedMesh ref={ref} args={[undefined, undefined, CAP]} castShadow frustumCulled={false}>
-      <boxGeometry args={[0.5, 0.5, 0.5]} />
-      <meshStandardMaterial metalness={0.5} roughness={0.45} />
-    </instancedMesh>
+    <instancedMesh ref={ref} args={[geometry, material, CAP]} castShadow frustumCulled={false} />
   );
 }
 
@@ -78,8 +73,9 @@ function Pallet() {
   const v = useView();
   return (
     <group position={[ST.palletizer + PAL_PALLET[0], 0, PAL_PALLET[2]]} visible={v.mode === "factory" || v.machine === "PAL"}>
-      {[-0.55, 0, 0.55].map((z) => <mesh key={z} position={[0, 0.06, z]} castShadow><boxGeometry args={[1.6, 0.12, 0.2]} /><meshStandardMaterial color="#a16207" roughness={0.9} /></mesh>)}
-      <mesh position={[0, 0.14, 0]} receiveShadow><boxGeometry args={[1.6, 0.04, 1.6]} /><meshStandardMaterial color="#ca8a04" roughness={0.9} /></mesh>
+      {/* two Euro pallets (EPAL 1200 x 800) side by side = 1.2 x 1.6 m pattern area */}
+      <Load shape={euroPallet} mat="wood" position={[0, 0, -0.4]} />
+      <Load shape={euroPallet} mat="wood" position={[0, 0, 0.4]} />
     </group>
   );
 }
@@ -99,11 +95,13 @@ function Agv({ id, index }: { id: string; index: number }) {
   return (
     <MachineView def={MACHINE[id]} groupRef={(g) => { group.current = g; }}>
       <group ref={raw} position={[0, 0.5, 0]}>
-        <mesh position={[0, 0.3, 0]} castShadow><boxGeometry args={[1.0, 0.6, 0.75]} /><meshStandardMaterial color="#8b5a2b" roughness={0.9} /></mesh>
+        <Load shape={euroPallet} mat="wood" />
+        <Load shape={RAW_LOAD} mat="castIron" />
       </group>
       <group ref={pal} position={[0, 0.5, 0]}>
-        <mesh position={[0, 0.07, 0]}><boxGeometry args={[1.2, 0.14, 0.9]} /><meshStandardMaterial color="#ca8a04" /></mesh>
-        <mesh position={[0, 0.42, 0]} castShadow><boxGeometry args={[1.1, 0.55, 0.85]} /><meshStandardMaterial color="#f97316" metalness={0.4} roughness={0.4} /></mesh>
+        <Load shape={euroPallet} mat="wood" />
+        <Load shape={CARTON} mat="wood" tint="#c49a6c" position={[0, 0.46, 0]} />
+        <Load shape={WRAP} mat="smokedGlass" position={[0, 0.46, 0]} />
       </group>
     </MachineView>
   );
@@ -142,7 +140,6 @@ function WeldArcs() {
 export function Flow() {
   return (
     <>
-      <Rollers />
       <Workpieces />
       <Pallet />
       {AGV_IDS.map((id, i) => <Agv key={id} id={id} index={i} />)}

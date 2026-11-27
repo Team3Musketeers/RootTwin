@@ -29,7 +29,8 @@ Checks: `npm run typecheck` · `npm test` (vitest).
 
 ## 3D production-line digital twin (front-end, 27/11)
 
-A full Industry 4.0 hall: reflective epoxy floor with AGV guide path and walkways, steel columns and roof trusses, LED
+A full Industry 4.0 hall: dark reflective epoxy floor (procedural wear and tyre scuffs, yellow walkways, hazard-striped
+keep-out zones, AGV guide path), open-top steel columns (no roof trusses, so the camera is never blocked), LED
 high-bays, cable trays, catwalk with stairs, high-bay racks, safety fencing, and **8 machine types / 11 machines** working
 as one synchronised line:
 
@@ -63,16 +64,46 @@ as one synchronised line:
 - **KPIs**: line status pill (Running / Warning / Fault-Stopped / E-stop), OEE = A × P × Q, parts/h, good parts, pallets.
 - **Live backend**: when the API is reachable, a backend machine that goes down or an AI alarm becomes a fault on the
   mapped component; injecting / clearing a fault in the twin is mirrored on the line (`/command`).
-- Keyboard: `Space` run/pause · `E` exploded · `I` isolate · `F` locate fault · `R` reset camera · `Esc` back.
+- Keyboard: `Space` run/pause · `E` exploded · `X` X-ray · `I` isolate · `F` locate fault · `R` reset camera · `Esc` back.
+
+**CAD-grade visual layer (27/11, v3)** - no box placeholders any more:
+- **Geometry kernel** (`scene3d/cad.ts`): rounded/filleted housings, true **involute helical gears**, finned motors with fan
+  cover and terminal box, **tapered roller bearings**, bolt circles, corrugated hoses and cables (`TubeGeometry`), helical
+  springs/chains, T-slot aluminium profiles, extruded outlines with bevels, lathe (revolved) parts; merged and cached.
+- **PBR material library** (`scene3d/materials.ts`, 31 presets on `MeshPhysicalMaterial`): robot orange/yellow paint with
+  clear-coat, brushed aluminium, chrome, cast iron, copper, rubber, glass with transmission, smoked polycarbonate,
+  perforated sheet, chevron belt (texture scrolls with belt speed), emissive LEDs, laser beams, HMI screens.
+- **Machines**: 6-axis robots with cast base, harmonic reducers, servo motors, counterbalance and dress pack; CNC with glass
+  sliding door, ball screws, finned spindle, 16-tool ATC, T-slot table, vise, coolant nozzles, chip auger; gearbox press
+  with ribbed housing, sight glass, breather, jaw coupling, helical gear train, chrome rod; T-slot conveyors with drive
+  drums, worm reducers, guards, photo-eyes and laser beams; vision portal with camera, ring light, laser line profiler,
+  light curtains, reject pusher; AMRs with LiDAR windows and LED strips; Euro pallets and machined workpiece blanks.
+  Every machine has **15-42 parts** (checked by a test: ≥ 15 parts, < 60 % primitives, an X-ray housing).
+- **X-ray / cutaway** (`X` or button): every part flagged `housing` turns to blue glass so the internals stay visible
+  while the machine runs; combines with isolate and exploded view.
+- **Faulty part = vivid crimson emissive** (> 1, picked up by bloom); when a part is selected, the other parts of the
+  machine are ghosted *and desaturated* so only the faulty / selected part carries colour. Engineering card: part number,
+  material, tolerance, health %, live telemetry (backend when connected), maintenance notes, copilot.
+- **Rendering**: HDRI + 4 Lightformer softboxes (highlight streaks on paint and chrome), contact shadows, post-processing
+  chain **N8AO (ambient occlusion) → Bloom (threshold 1: only LEDs, lasers, arcs and faults glow) → ACES Filmic tone
+  mapping → SMAA**. `HQ` toggle switches reflections/post-processing off on weak GPUs.
+
+**Component-level backend** (`roottwin/components.py`, `roottwin/faults/components.yaml`): the backend now knows the
+physical components of M1-M6 (24 components, ids = the CAD part ids of the 3D model, checked by `tests/test_components.py`).
+Each fault code is located on one component; the live snapshot carries `components` (per-part health %, local channels
+like bearing temperature, winding current, belt tension, laser power) and AI alarms carry `payload.component`, so the twin
+turns the exact part red. **New dataset `components_v1`** (`python scripts/make_component_dataset.py`): 391,680 rows,
+204 scenarios (6 machines × every fault code + healthy runs × 4 seeds × 240 min), labelled with the root-cause component -
+training data for "which part is failing", not only "which machine".
 
 **How it is built** (`frontend/src/`): `twin/` is pure TypeScript and tested — data model (`types.ts`), one file per
 machine family (`machines/*.ts` = component trees as data), 6-axis FK/IK (`kinematics.ts`), the simulation
-(`sim.ts`: flow, station cycles, robot programs, AGVs, faults, OEE) and the backend adapter (`backend.ts`).
+(`sim.ts`: flow, station cycles, robot programs, AGVs, faults, OEE); the backend bridge is `services/productionBridge.ts`.
 `scene3d/` has one generic `MachineView` that turns any component tree into a 3D kinematic chain with explode / ghost /
-fault / selection behaviour, plus the hall (instanced columns, trusses, racks, fences, lights), the flow (instanced
-rollers and workpieces, AGVs, welding arcs) and the camera rig. Animations run in `useFrame` on refs (no React state per
+fault / selection / X-ray behaviour, plus the hall (instanced columns, racks, fences, lights), the flow (instanced
+workpiece blanks, Euro pallets, AGVs, welding arcs) and the camera rig. Animations run in `useFrame` on refs (no React state per
 frame); the HUD refreshes at 5 Hz. Stack: React 18, TypeScript, Vite, Tailwind 4, three.js r170, React Three Fiber,
-drei, postprocessing (bloom).
+drei, postprocessing (N8AO, bloom, ACES, SMAA).
 
 **3D resources researched**: no free (CC0) industrial robot model with separate, rigged joints exists (CGTrader /
 TurboSquid ones are paid or editorial-only), and an exploded view needs per-part metadata that downloaded meshes do not

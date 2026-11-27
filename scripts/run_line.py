@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 
 import paho.mqtt.client as mqtt
 
+from roottwin.components import snapshot_components
 from roottwin.contracts import Command
 from roottwin.line import Line
 
@@ -107,6 +108,7 @@ def main():
                 snap = line.snapshot()
                 snap["time_scale"] = state["scale"]
                 snap["sensors"] = last_sensors
+                snap["components"] = snapshot_components(line, last_sensors)   # per-part health/telemetry for the 3D twin
             client.publish(f"twin/{a.line}/snapshot", json.dumps(snap), qos=0)
             time.sleep(max(0.0, TICK_S - (time.monotonic() - t0)))
     except KeyboardInterrupt:

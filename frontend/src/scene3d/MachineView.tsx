@@ -1,16 +1,17 @@
-// Generic renderer: any MachineDef -> kinematic part tree with live motion, staggered exploded view,
-// isolation ghosting, selection/hover highlight, pulsing red faulty parts, guide lines, callouts and a status beacon.
+// Generic renderer: any MachineDef -> kinematic CAD part tree with live motion, staggered exploded view, X-ray cutaway,
+// isolation ghosting, selection/hover highlight, emissive crimson faulty parts, CAD axis guides, leader-line callouts, beacon.
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { Html, Line } from "@react-three/drei";
 import * as THREE from "three";
 import { explodeProgress } from "../twin/explode";
 import type { MachineDef, Part } from "../twin/types";
+import { geometryFor } from "./cad";
 import { objects, useView } from "./context";
-import { geometryFor } from "./geometry";
+import { isEmissivePreset, makeMaterial } from "./materials";
 
 const noRaycast = () => undefined;              // ghosted machines are not clickable
-const RED = new THREE.Color("#ff1a1a"), CYAN = new THREE.Color("#38bdf8"), BLACK = new THREE.Color("#000000");
+const CRIMSON = new THREE.Color("#ff0a1e"), AMBER = new THREE.Color("#ff6a00"), CYAN = new THREE.Color("#38bdf8"), XRAY = new THREE.Color("#7dd3fc"), GHOST = new THREE.Color("#94a3b8");
 
 interface Node { part: Part; children: Node[] }
 function tree(parts: Part[]): Node[] {
@@ -25,15 +26,19 @@ function PartNode({ node, def, maxOrder, explodeRef }: { node: Node; def: Machin
   const p = node.part;
   const group = useRef<THREE.Group>(null);
   const guide = useRef<any>(null);
+  const leader = useRef<any>(null);
   const label = useRef<HTMLDivElement>(null);
-  const mat = useMemo(() => new THREE.MeshStandardMaterial({
-    color: p.color, metalness: p.metalness ?? 0.6, roughness: p.roughness ?? 0.4,
-    transparent: (p.opacity ?? 1) < 1, opacity: p.opacity ?? 1,
-  }), [p]);
+  const geometry = useMemo(() => geometryFor(p.geo), [p.geo]);
+  const mat = useMemo(() => makeMaterial(p.mat, p.color), [p.mat, p.color]);
   useEffect(() => () => mat.dispose(), [mat]);
   useEffect(() => { if (group.current) objects.set(p.id, group.current); return () => { objects.delete(p.id); }; }, [p.id]);
   const mine = v.machine === def.id;
   const isolatedOther = v.mode !== "factory" && v.machine !== null && !mine;
+  const base = mat.userData.base as { color: THREE.Color; emissive: THREE.Color; emissiveIntensity: number; opacity: number; transparent: boolean };
+  const labelOffset = useMemo(() => {
+    const e = new THREE.Vector3(...p.explodeVector);
+    return (e.lengthSq() > 0 ? e.normalize().multiplyScalar(0.25) : new THREE.Vector3()).add(new THREE.Vector3(0, 0.3, 0));
+  }, [p.explodeVector]);
 
   useFrame(({ clock }) => {
     const g = group.current;
@@ -41,32 +46,43 @@ function PartNode({ node, def, maxOrder, explodeRef }: { node: Node; def: Machin
     const rt = v.sim.rt[def.id];
     const m = p.motion?.(rt, v.sim.t) ?? {};
     const e = explodeProgress(explodeRef.current, p.explodeOrder, maxOrder);
-    const base = m.pos ?? p.pos;
-    g.position.set(base[0] + p.explodeVector[0] * e, base[1] + p.explodeVector[1] * e, base[2] + p.explodeVector[2] * e);
+    const pos = m.pos ?? p.pos;
+    g.position.set(pos[0] + p.explodeVector[0] * e, pos[1] + p.explodeVector[1] * e, pos[2] + p.explodeVector[2] * e);
     const r = m.rot ?? p.rot ?? [0, 0, 0];
     g.rotation.set(r[0], r[1], r[2]);
-    // material state
+    // --- material state: fault > selection > X-ray > ghost > base
     const fault = v.sim.partFault(p.id);
     const sel = v.part === p.id, hov = v.hoverPart === p.id;
+    let opacity = base.opacity, transparent = base.transparent;
     if (fault) {
-      mat.emissive.copy(RED);
-      mat.emissiveIntensity = (fault.severity === "critical" ? 1.6 : 0.9) * (0.55 + 0.45 * Math.sin(clock.elapsedTime * 7));
-      mat.color.set(fault.severity === "critical" ? "#ff2d2d" : "#ff7a1a");
+      const pulse = 0.55 + 0.45 * Math.sin(clock.elapsedTime * 7);
+      mat.color.copy(fault.severity === "critical" ? CRIMSON : AMBER);
+      mat.emissive.copy(fault.severity === "critical" ? CRIMSON : AMBER);
+      mat.emissiveIntensity = (fault.severity === "critical" ? 2.6 : 1.4) * pulse;          // > 1: picked up by the bloom pass
+      opacity = 1; transparent = false;
     } else {
-      mat.color.set(p.color);
-      mat.emissive.copy(sel ? CYAN : hov ? CYAN : BLACK);
-      mat.emissiveIntensity = sel ? 0.6 : hov ? 0.3 : 0;
+      mat.color.copy(base.color);
+      if (sel || hov) { mat.emissive.copy(CYAN); mat.emissiveIntensity = sel ? 0.55 : 0.25; }
+      else { mat.emissive.copy(base.emissive); mat.emissiveIntensity = base.emissiveIntensity; }
+      if (v.xray && p.housing && (mine || v.mode === "factory")) { mat.color.copy(XRAY); opacity = 0.12; transparent = true; }
+      if (isolatedOther) { opacity = Math.min(opacity, v.sim.line.ghost); transparent = true; }
+      else if (v.mode !== "factory" && mine && v.part && !sel && !isEmissivePreset(p.mat)) {
+        mat.color.lerp(GHOST, 0.75);                      // desaturate context parts so only the selected / faulty part carries colour
+        opacity = Math.min(opacity, 0.3); transparent = true;
+      }
     }
-    const ghost = isolatedOther ? v.sim.line.ghost : (v.mode !== "factory" && mine && v.part && !sel && !fault ? 0.35 : p.opacity ?? 1);
-    if (mat.transparent !== ghost < 1) { mat.transparent = ghost < 1; mat.needsUpdate = true; }   // shader recompile only on change
-    mat.opacity = ghost; mat.depthWrite = ghost >= 0.5;
-    // guide line from the mounted position to the exploded position (in the parent's frame)
+    if (mat.transparent !== transparent) { mat.transparent = transparent; mat.needsUpdate = true; }   // shader recompile only on change
+    mat.opacity = opacity; mat.depthWrite = opacity >= 0.5;
+    if (p.mat === "belt" && mat.map) mat.map.offset.x = -(v.sim.rt.CNV.phase.belt ?? 0) * 0.5;   // moving belt texture
+    // --- CAD axis guide (mounted -> exploded position, extended) and leader-line callout
+    const showGuide = v.guides && mine && e > 0.02;
     if (guide.current) {
-      const show = v.guides && mine && e > 0.02;
-      guide.current.visible = show;
-      if (show) guide.current.geometry.setPositions([base[0], base[1], base[2], g.position.x, g.position.y, g.position.z]);
+      guide.current.visible = showGuide;
+      if (showGuide) guide.current.geometry.setPositions([pos[0] - p.explodeVector[0] * 0.15, pos[1] - p.explodeVector[1] * 0.15, pos[2] - p.explodeVector[2] * 0.15, g.position.x, g.position.y, g.position.z]);
     }
-    if (label.current) label.current.style.display = v.labels && mine && (explodeRef.current > 0.25 || sel) ? "block" : "none";
+    const showLabel = v.labels && mine && (explodeRef.current > 0.25 || sel);
+    if (leader.current) leader.current.visible = showLabel;
+    if (label.current) label.current.style.display = showLabel ? "block" : "none";
   });
 
   const onClick = (ev: ThreeEvent<MouseEvent>) => {
@@ -74,46 +90,57 @@ function PartNode({ node, def, maxOrder, explodeRef }: { node: Node; def: Machin
     if (isolatedOther) return;
     if (mine && v.mode !== "factory") v.selectPart(p.id); else v.selectMachine(def.id);
   };
+  const health = v.sim.partFault(p.id);
   return (
     <>
       <group ref={group}>
-        <mesh geometry={geometryFor(p.geo)} material={mat} position={p.meshPos} rotation={p.meshRot} castShadow receiveShadow
+        <mesh geometry={geometry} material={mat} position={p.meshPos} rotation={p.meshRot} castShadow={!isEmissivePreset(p.mat) && p.mat !== "glass"} receiveShadow
               onClick={onClick} onDoubleClick={(ev) => { ev.stopPropagation(); if (!isolatedOther) v.isolate(def.id); }}
               onPointerOver={(ev) => { ev.stopPropagation(); if (!isolatedOther) { v.hover(p.id); document.body.style.cursor = "pointer"; } }}
               onPointerOut={() => { v.hover(null); document.body.style.cursor = ""; }}
               raycast={isolatedOther ? noRaycast : THREE.Mesh.prototype.raycast} />
         {mine && (
-          <Html position={[0, 0, 0]} center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
-            <div ref={label} style={{ display: "none" }} className="whitespace-nowrap rounded border border-white/20 bg-slate-950/85 px-1.5 py-0.5 text-[10px] text-slate-100 shadow">
-              <span className="font-mono text-sky-300">{p.partNumber}</span> {p.name}
-            </div>
-          </Html>
+          <>
+            <Line ref={leader} points={[[0, 0, 0], labelOffset.toArray() as [number, number, number]]} color="#e2e8f0" lineWidth={1} transparent opacity={0.7} visible={false} />
+            <Html position={labelOffset.toArray() as [number, number, number]} zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
+              <div ref={label} style={{ display: "none" }} className={`-translate-y-1/2 whitespace-nowrap rounded-sm border-l-2 bg-slate-950/90 px-1.5 py-0.5 text-[10px] text-slate-100 shadow ${health ? "border-red-500" : "border-sky-400"}`}>
+                <span className="font-mono text-sky-300">{p.partNumber}</span> {p.name}
+              </div>
+            </Html>
+          </>
         )}
         {node.children.map((c) => <PartNode key={c.part.id} node={c} def={def} maxOrder={maxOrder} explodeRef={explodeRef} />)}
       </group>
-      {mine && <Line ref={guide} points={[[0, 0, 0], [0, 0, 0]]} color="#38bdf8" dashed dashSize={0.08} gapSize={0.06} lineWidth={1} visible={false} />}
+      {mine && <Line ref={guide} points={[[0, 0, 0], [0, 0, 0]]} color="#22d3ee" dashed dashSize={0.06} gapSize={0.04} lineWidth={1.2} visible={false} />}
     </>
   );
 }
 
 function Beacon({ def }: { def: MachineDef }) {
   const v = useView();
-  const mat = useRef<THREE.MeshStandardMaterial>(null);
+  const mats = [useRef<THREE.MeshStandardMaterial>(null), useRef<THREE.MeshStandardMaterial>(null), useRef<THREE.MeshStandardMaterial>(null)];
   const light = useRef<THREE.PointLight>(null);
   useFrame(({ clock }) => {
     const faults = v.sim.machineFaults(def.id), rt = v.sim.rt[def.id];
     const crit = faults.some((f) => f.severity === "critical");
-    const col = crit ? "#ff1a1a" : faults.length ? "#f59e0b" : rt.status === "RUN" && v.sim.line.state === "RUNNING" ? "#22c55e" : "#64748b";
-    const pulse = crit || faults.length ? 0.6 + 0.6 * Math.abs(Math.sin(clock.elapsedTime * 5)) : 0.8;
-    if (mat.current) { mat.current.color.set(col); mat.current.emissive.set(col); mat.current.emissiveIntensity = pulse * 2; }
-    if (light.current) { light.current.color.set(col); light.current.intensity = crit && v.mode === "factory" ? 3 * pulse : 0; }   // no red flood in close-ups
+    const pulse = 0.5 + 0.5 * Math.abs(Math.sin(clock.elapsedTime * 5));
+    const on = [crit ? pulse : 0, !crit && faults.length ? pulse : 0, !faults.length && rt.status === "RUN" && v.sim.line.state === "RUNNING" ? 1 : 0];   // red / amber / green stack
+    mats.forEach((m, i) => { if (m.current) m.current.emissiveIntensity = 0.05 + on[i] * 3.2; });
+    if (light.current) light.current.intensity = crit && v.mode === "factory" ? 3 * pulse : 0;
   });
-  const y = def.size[1] + 0.35;
+  const y = def.size[1] + 0.3;
+  const colors = ["#ff1a1a", "#ffb020", "#22c55e"];
   return (
     <group position={[0, y, 0]}>
-      <mesh position={[0, -0.25, 0]}><cylinderGeometry args={[0.04, 0.04, 0.5, 8]} /><meshStandardMaterial color="#334155" /></mesh>
-      <mesh><cylinderGeometry args={[0.13, 0.13, 0.26, 16]} /><meshStandardMaterial ref={mat} toneMapped={false} /></mesh>
-      <pointLight ref={light} distance={4} intensity={0} />
+      <mesh position={[0, -0.25, 0]}><cylinderGeometry args={[0.02, 0.02, 0.5, 8]} /><meshStandardMaterial color="#9ca3af" metalness={0.9} roughness={0.3} /></mesh>
+      {colors.map((c, i) => (
+        <mesh key={c} position={[0, 0.25 - i * 0.1, 0]}>
+          <cylinderGeometry args={[0.055, 0.055, 0.09, 20]} />
+          <meshStandardMaterial ref={mats[i]} color={c} emissive={c} emissiveIntensity={0.05} toneMapped={false} roughness={0.3} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.32, 0]}><cylinderGeometry args={[0.05, 0.055, 0.04, 20]} /><meshStandardMaterial color="#1f2937" /></mesh>
+      <pointLight ref={light} color="#ff1a1a" distance={4} intensity={0} position={[0, 0.25, 0]} />
     </group>
   );
 }
@@ -133,7 +160,7 @@ export function MachineView({ def, children, groupRef }: { def: MachineDef; chil
     <group ref={(g) => { (group as { current: THREE.Group | null }).current = g; groupRef?.(g); }}
            position={def.position} rotation={[0, def.rotation ?? 0, 0]}>
       {roots.map((n) => <PartNode key={n.part.id} node={n} def={def} maxOrder={maxOrder} explodeRef={explodeRef} />)}
-      {def.id !== "CNV" && <Beacon def={def} />}
+      {def.id !== "CNV" && def.type !== "agv" && <Beacon def={def} />}
       {children}
     </group>
   );

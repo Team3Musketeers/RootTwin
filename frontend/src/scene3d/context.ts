@@ -13,6 +13,7 @@ export interface ViewState {
   hoverPart: string | null;
   explode: number;                 // target explode factor for the selected machine (0..1)
   guides: boolean;
+  xray: boolean;                   // housings become transparent (cutaway) so internals are visible while running
   labels: boolean;
   quality: boolean;
   selectMachine: (id: string | null) => void;

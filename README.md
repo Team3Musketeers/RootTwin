@@ -20,13 +20,66 @@ line engine (run_line.py) ──MQTT telemetry/event/snapshot──► Mosquitto
 ```powershell
 docker compose up -d --build        # broker, DB, ingestor, API + 3D app, line, live detector
 ```
-Open **http://localhost:8000** → **Observer**: the line runs; click a machine, change speed, create an order,
-inject a fault (e.g. M3 · BEARING_WEAR) and watch the alarm arrive before the stop, with its explanation,
-the probable root cause and the copilot's repair steps. **Play**: run the maintenance of one shift yourself
-(LOTO checklist included) and compare your score with the AI and the classic strategies on the same shift.
+Open **http://localhost:8000** → **Digital twin** (3D production line) and **Play** (run one shift's maintenance
+yourself, LOTO checklist included, score compared with the AI and the classic strategies on the same shift).
 Swagger: http://localhost:8000/docs. If port 5433 is taken on your machine: `$env:POSTGRES_PORT=5434; docker compose up -d`.
 
 Front-end development with hot reload: `cd frontend; npm install; npm run dev` → http://localhost:5173 (proxies the API on :8000).
+Checks: `npm run typecheck` · `npm test` (vitest).
+
+## 3D production-line digital twin (front-end, 27/11)
+
+A full Industry 4.0 hall: reflective epoxy floor with AGV guide path and walkways, steel columns and roof trusses, LED
+high-bays, cable trays, catwalk with stairs, high-bay racks, safety fencing, and **8 machine types / 11 machines** working
+as one synchronised line:
+
+| # | Machine | Moving parts & kinematics | Backend link |
+|---|---|---|---|
+| 1 | Raw material high-bay rack & **pallet dispenser** | lift plate, pneumatic pusher, magazine | — |
+| 2 | **AGV / AMR fleet** (×3) | drive wheels, lifting deck; loop path, keeps distance, delivers raw carriers, picks full pallets, stores them in the rack | — |
+| 3 | **Infeed vision & laser portal** | reject diverter flap, light curtain | M1 |
+| 4 | **CNC machining centre** | sliding door, Z head on ball screw, spindle (rpm), tool carousel, rotary table | M2 |
+| 5 | **Gearbox drive & hydraulic press** | motor → coupling → 2-stage gear train at true ratios (z16/32/40), ram stroke | M3 |
+| 6 | **Dual-robot welding cell** | two 6-axis arms (J1–J6) driven by inverse kinematics along the seam, clamps, arc light | M4 |
+| 7 | **Palletizing robot & outfeed** | heavy 6-axis arm with vacuum gripper, IK pick & place, 3 × 3 pallet pattern | M5 |
+| 8 | **PLC & electrical cabinet bank** | doors, PLC rack, I/O, inverters, breakers, 24 V PSU, roof fans | — |
+| + | Main-line conveyors (5 drives) | accumulating belts, rollers, per-segment drive & tension sensor | M6 |
+
+**What you can do**
+- **4 levels of detail**: factory overview → zone presets → *Isolate machine* (others ghosted, hall hidden) → *Exploded view (vue éclatée)*.
+- **Exploded view**: every part has a part number, category, material, description, maintenance notes, `explodeVector`,
+  `explodeOrder` (outer housings first, shafts and bearings last) and assembly axis. Slider 0–100 %, quick 0/50/100 %,
+  *animate assembly sequence*, dashed axis guide lines, floating callouts, BOM table.
+- **Faults**: red pulsing beacon on the machine in the factory view, the exact faulty component turns red, faults bubble
+  up the hierarchy tree; **Locate & auto-explode** (button, top banner or `F`) flies to the machine, isolates it, explodes
+  it and frames the red internal part (e.g. *Gearbox input bearing*). Diagnostics: active faults (ID, machine, component,
+  code, severity, time, Locate / Acknowledge / Clear), fault simulator for every component listed per machine, event log.
+- **Controls** (context aware): whole line (Start, Pause, E-stop / Reset, Step, Reset; master speed 0–150 %, belt speed,
+  AGV fleet speed, spawn interval, lighting, X-ray opacity; scenario presets) or one machine (Run, Hold, Stop, Home axes,
+  Step cycle, Isolate, Exploded; J1–J6 + gripper/tool speed/power for robots, rpm/force/pressure/temperature for CNC
+  and press, speed/current/load/voltage for conveyors and AGVs). Sliders and exact numeric inputs are two-way synced.
+- **Component card**: what the part does, live telemetry (e.g. bearing temperature and vibration rise under a fault),
+  maintenance notes, and **Ask the maintenance copilot** (backend RAG over the repair manuals).
+- **KPIs**: line status pill (Running / Warning / Fault-Stopped / E-stop), OEE = A × P × Q, parts/h, good parts, pallets.
+- **Live backend**: when the API is reachable, a backend machine that goes down or an AI alarm becomes a fault on the
+  mapped component; injecting / clearing a fault in the twin is mirrored on the line (`/command`).
+- Keyboard: `Space` run/pause · `E` exploded · `I` isolate · `F` locate fault · `R` reset camera · `Esc` back.
+
+**How it is built** (`frontend/src/`): `twin/` is pure TypeScript and tested — data model (`types.ts`), one file per
+machine family (`machines/*.ts` = component trees as data), 6-axis FK/IK (`kinematics.ts`), the simulation
+(`sim.ts`: flow, station cycles, robot programs, AGVs, faults, OEE) and the backend adapter (`backend.ts`).
+`scene3d/` has one generic `MachineView` that turns any component tree into a 3D kinematic chain with explode / ghost /
+fault / selection behaviour, plus the hall (instanced columns, trusses, racks, fences, lights), the flow (instanced
+rollers and workpieces, AGVs, welding arcs) and the camera rig. Animations run in `useFrame` on refs (no React state per
+frame); the HUD refreshes at 5 Hz. Stack: React 18, TypeScript, Vite, Tailwind 4, three.js r170, React Three Fiber,
+drei, postprocessing (bloom).
+
+**3D resources researched**: no free (CC0) industrial robot model with separate, rigged joints exists (CGTrader /
+TurboSquid ones are paid or editorial-only), and an exploded view needs per-part metadata that downloaded meshes do not
+carry, so machines are built procedurally from data. The only external asset is the CC0 HDRI
+*Industrial Pipe and Valve 01* from [Poly Haven](https://polyhaven.com) (`frontend/public/hdri/`, shipped locally, works
+offline). [Kenney's Conveyor / Factory kits](https://kenney.nl/assets/conveyor-kit) (CC0) are a good option for extra
+low-poly decoration if wanted.
 
 Planning: [docs/Planning_Projet_IA_Usine_3D_v2.xlsx](docs/Planning_Projet_IA_Usine_3D_v2.xlsx) (v2 = interactive production, see below).
 
@@ -76,7 +129,7 @@ Planning: [docs/Planning_Projet_IA_Usine_3D_v2.xlsx](docs/Planning_Projet_IA_Usi
 |---|---|---|
 | Line engine (stand-in for A's T03/T06/T12) | One model of the line used by the live demo, the RL env, the benchmark and Play: parts flow through 6 machines and 5 buffers, blocking/starvation, 3 workers with skills who walk, lock out and repair, wear-driven random faults, planned vs breakdown repair, KPIs | [roottwin/line.py](roottwin/line.py), [scripts/run_line.py](scripts/run_line.py) |
 | **T05** API | REST (`/state`, `/events`, `/machines/{id}/history`, `/copilot/ask`, `/command/...`), WebSocket `/ws` relaying the snapshot and alarms, serves the built 3D app | [roottwin/api.py](roottwin/api.py) |
-| **T08 / T11** 3D + Observer | React Three Fiber scene (machines coloured by status, hotspots, conveyors with buffer levels, parts gliding between machines, walking workers, camera stations), control panel (start/pause, orders, time ×10–×600, fault injection), machine panel (live sensors, speed, send worker, preventive, stop), alerts with explanation + root cause + copilot, KPI bar | [frontend/](frontend/) |
+| **T08 / T11** 3D + controls | Replaced on 27/11 by the full production-line digital twin (see the section above) | [frontend/src/](frontend/src/) |
 | Live detector (J10 milestone) | Isolation Forest trained at start-up on the line engine, persistence filter, SHAP explanation, root cause (most upstream machine in alarm that is not merely blocked/starved), copilot advice, published as `alarm` events | [roottwin/live_detector.py](roottwin/live_detector.py) |
 | **T17** Gymnasium env | 8-hour shift, decision every 5 min, observation = what a supervisor sees (no hidden fault labels), actions = the same commands as the UI; passes `check_env` | [roottwin/rl/env.py](roottwin/rl/env.py) |
 | **T18** Baselines | Corrective, preventive (wear limit), condition-based (sensor thresholds), and an **OR-Tools CP-SAT** planner that schedules one preventive slot per machine (no overlap) + reacts like condition-based | [roottwin/rl/policies.py](roottwin/rl/policies.py) |
@@ -202,7 +255,7 @@ roottwin/                    shared Python package
   api.py, play.py            main API + WebSocket, Play mode
   live_detector.py           live alarms with explanation and root cause
   rl/                        Gymnasium env, baselines + OR-Tools planner, benchmark runner
-frontend/                    React Three Fiber app (Observer + Play)
+frontend/                    React Three Fiber + TypeScript app (3D digital twin + Play)
 reports/                     metrics (JSON) and figures of every model
 services/                    Dockerfiles: ingestor, command_api, app (API + 3D + line + detector)
 scenarios/                   hand-written fault scenarios (demo, cascade, false alarm)

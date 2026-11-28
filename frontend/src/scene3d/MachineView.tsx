@@ -10,6 +10,7 @@ import { geometryFor } from "./cad";
 import { objects, useView } from "./context";
 import { labelVisible } from "./hud";
 import { isEmissivePreset, makeMaterial } from "./materials";
+import { AMR_DIR, useAmrMeshes } from "./amrMeshes";
 import { useAssetAvailable } from "./assetLoader";
 import { GlbMachine } from "./GlbMachine";
 import { hostedBy, ROBOT_MODELS, useRobotMeshes } from "./robotMeshes";
@@ -181,6 +182,10 @@ function Beacon({ def }: { def: MachineDef }) {
   );
 }
 
+function AmrParts({ children }: { children: (glb: Glb) => ReactNode }) {
+  return <>{children(useAmrMeshes())}</>;
+}
+
 function RobotParts({ id, children }: { id: string; children: (glb: Glb) => ReactNode }) {
   return <>{children(useRobotMeshes(id))}</>;
 }
@@ -198,6 +203,7 @@ export function MachineView({ def, children, groupRef }: { def: MachineDef; chil
   const model = useModelUrl(def.id);
   const parts = (glb: Glb) => roots.map((n) => <PartNode key={n.part.id} node={n} def={def} maxOrder={maxOrder} explodeRef={explodeRef} glb={glb} />);
   const robots = useAssetAvailable(ROBOT_MODELS[def.id] ? `/models/robots/${ROBOT_MODELS[def.id][0].dir}/base_link.dae` : "/models/robots/none");
+  const amr = useAssetAvailable(def.type === "agv" ? `${AMR_DIR}/mir_250_base.stl` : "/models/amr/none");
   useEffect(() => { if (group.current) objects.set(def.id, group.current); return () => { objects.delete(def.id); }; }, [def.id]);
   useFrame((_, dt) => {
     const target = v.machine === def.id && v.mode === "exploded" ? v.explode : 0;
@@ -207,6 +213,7 @@ export function MachineView({ def, children, groupRef }: { def: MachineDef; chil
     <group ref={(g) => { (group as { current: THREE.Group | null }).current = g; groupRef?.(g); }}
            position={def.position} rotation={[0, def.rotation ?? 0, 0]}>
       {robots ? <Suspense fallback={parts(null)}><RobotParts id={def.id}>{parts}</RobotParts></Suspense>
+        : amr ? <Suspense fallback={parts(null)}><AmrParts>{parts}</AmrParts></Suspense>
         : !model ? parts(null)
         : model.replace ? <Suspense fallback={parts(null)}><GlbMachine url={model.url} def={def} explodeRef={explodeRef} /></Suspense>
         : <Suspense fallback={parts(null)}><GlbParts url={model.url}>{parts}</GlbParts></Suspense>}

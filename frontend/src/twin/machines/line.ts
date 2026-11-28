@@ -374,14 +374,14 @@ const SEG_X = [LINE_X0, ST.vision - 1.1, ST.vision + 1.1, ST.cnc - 1.65, ST.cnc 
 export const SEGMENTS = [0, 1, 2, 3, 4].map((i) => ({ n: i + 1, x0: SEG_X[i * 2], x1: SEG_X[i * 2 + 1] }));
 export const conveyors: MachineDef = {
   id: "CNV", type: "dispenser", name: "Main line conveyors (5 drives)", zone: "machining", backendId: "M6", position: [0, 0, 0], size: [46, 1.2, 1.2],
-  description: "Five belt conveyor sections on T-slot aluminium frames, each with its own drum motor, worm reducer and belt-tension sensor, chaining the stations at 0.9 m working height.",
+  description: "Five conveyor sections (belt and live-roller) on T-slot aluminium frames with yellow guide rails, each with its own drive motor, worm reducer, tension sensor, photo-eye / reflector pair and local control station, chaining the stations at 0.9 m working height.",
   controls: CONVEYOR_CONTROLS, defaults: { speed: 0.6, current: 6.5, load: 120, voltage: 400 },
   faults: SEGMENTS.flatMap((s) => [
     { code: `CNV${s.n}-TENS`, partId: `CNV.s${s.n}.tension`, label: `Conveyor #${s.n} – belt tension sensor fault`, severity: "warning" as const, backendCodes: s.n === 3 ? ["SENSOR_DRIFT", "SENSOR_STUCK", "BELT_SLIP"] : [] },
     { code: `CNV${s.n}-DRIVE`, partId: `CNV.s${s.n}.motor`, label: `Conveyor #${s.n} – drive motor overcurrent`, severity: "critical" as const, backendCodes: s.n === 2 ? ["CONVEYOR_JAM", "MOTOR_OVERCURRENT"] : [] },
   ]),
   subAssemblies: SEGMENTS.map((s) => {
-    const L = s.x1 - s.x0, cx = (s.x0 + s.x1) / 2;
+    const L = s.x1 - s.x0, cx = (s.x0 + s.x1) / 2, roller = s.n % 2 === 0;   // alternate belt and live-roller sections
     const legs: V3[] = [];
     for (let x = s.x0 + 0.1; x <= s.x1 - 0.05; x += Math.max(1.2, L / Math.ceil(L / 1.6))) legs.push([x, 0, 0]);
     return { id: `CNV.s${s.n}`, name: `Conveyor #${s.n}`, parts: [
@@ -390,10 +390,26 @@ export const conveyors: MachineDef = {
           ...legs.flatMap(([x]) => [-0.42, 0.42].map((z) => at({ kind: "tslot", len: BELT_Y - 0.16, s: 0.045 }, [x - cx, (BELT_Y - 0.16) / 2, z], [0, 0, PI / 2]))),
           ...legs.map(([x]) => at({ kind: "tslot", len: 0.84, s: 0.045 }, [x - cx, 0.2, 0], [0, PI / 2, 0])),
           ...legs.flatMap(([x]) => [-0.42, 0.42].map((z) => at(cy(0.035, 0.025), [x - cx, 0.012, z])))) }),
-      k({ id: `CNV.s${s.n}.rails`, name: `Conveyor #${s.n} side guide rails`, category: "mechanical", mat: "steel", pos: [cx, BELT_Y + 0.14, 0], explodeVector: [0, 0.4, 0], explodeOrder: 1,
-        geo: comp(...[-0.44, 0.44].flatMap((z) => [at(rb(L - 0.1, 0.06, 0.02, 0.008), [0, 0, z]), ...Array.from({ length: Math.ceil(L / 1.5) }, (_, i) => at(cy(0.008, 0.18), [-L / 2 + 0.3 + i * 1.5, -0.1, z]))])) }),
-      k({ id: `CNV.s${s.n}.belt`, name: `Conveyor #${s.n} belt`, category: "mechanical", mat: "belt", pos: [cx, BELT_Y - 0.025, 0], explodeVector: [0, 0.7, 0], explodeOrder: 0, material: "PVC 2-ply belt, chevron top",
-        geo: rb(L - 0.1, 0.03, 0.82, 0.012), telemetry: (rt) => ({ speed: fmt(rt.act.speed ?? 0, "m/s", 2), tension: fmt(1.8 + (rt.phase[`slip${s.n}`] ?? 0), "kN") }) }),
+      k({ id: `CNV.s${s.n}.rails`, name: `Conveyor #${s.n} guide rails (yellow UHMW-faced)`, category: "mechanical", mat: "safetyYellow", pos: [cx, BELT_Y + 0.14, 0], explodeVector: [0, 0.4, 0], explodeOrder: 1,
+        material: "Powder-coated steel channel, UHMW-PE wear strip",
+        geo: comp(...[-0.44, 0.44].flatMap((z) => [at(rb(L - 0.1, 0.07, 0.025, 0.008), [0, 0, z]),
+          ...Array.from({ length: Math.ceil(L / 1.2) }, (_, i) => [at(cy(0.01, 0.2), [-L / 2 + 0.3 + i * 1.2, -0.11, z]), at(rb(0.06, 0.03, 0.05, 0.006), [-L / 2 + 0.3 + i * 1.2, -0.2, z + Math.sign(z) * 0.02])]).flat()])) }),
+      roller
+        ? k({ id: `CNV.s${s.n}.belt`, name: `Conveyor #${s.n} live roller bed (Ø50, 75 mm pitch)`, category: "mechanical", mat: "chrome", pos: [cx, BELT_Y - 0.03, 0], explodeVector: [0, 0.7, 0], explodeOrder: 0,
+            material: "Zinc-plated steel rollers, sealed bearings, chain-driven", description: "Live roller conveyor: every roller is driven through a sprocket and chain, so products can accumulate gently.",
+            geo: comp(...Array.from({ length: Math.floor((L - 0.12) / 0.075) }, (_, i) => at(cy(0.025, 0.8), [-L / 2 + 0.1 + i * 0.075, 0, 0], Z))),
+            telemetry: (rt) => ({ speed: fmt(rt.act.speed ?? 0, "m/s", 2), "chain tension": fmt(1.2 + (rt.phase[`slip${s.n}`] ?? 0), "kN") }) })
+        : k({ id: `CNV.s${s.n}.belt`, name: `Conveyor #${s.n} belt`, category: "mechanical", mat: "belt", pos: [cx, BELT_Y - 0.025, 0], explodeVector: [0, 0.7, 0], explodeOrder: 0, material: "PVC 2-ply belt, chevron top",
+            geo: rb(L - 0.1, 0.03, 0.82, 0.012), telemetry: (rt) => ({ speed: fmt(rt.act.speed ?? 0, "m/s", 2), tension: fmt(1.8 + (rt.phase[`slip${s.n}`] ?? 0), "kN") }) }),
+      k({ id: `CNV.s${s.n}.duct`, name: `Conveyor #${s.n} cable duct & conduit`, category: "electrical", mat: "graphite", pos: [cx, BELT_Y - 0.24, -0.5], explodeVector: [0, -0.2, -0.5], explodeOrder: 0,
+        geo: comp(at(rb(L - 0.3, 0.06, 0.08, 0.01)), at(hose([[L / 2 - 0.4, 0, 0], [L / 2 - 0.2, -0.1, 0.05], [L / 2 - 0.25, -0.05, 0.25], [L / 2 - 0.25, 0.1, 0.6]], 0.012, true))) }),
+      k({ id: `CNV.s${s.n}.box`, name: `Conveyor #${s.n} local control station`, category: "electrical", mat: "cabinet", pos: [s.x0 + 0.5, BELT_Y + 0.05, -0.66], explodeVector: [0, 0.2, -0.6], explodeOrder: 0,
+        description: "Local start / stop / reset push-buttons, E-stop and section stack light (maintenance on site).",
+        geo: comp(at(rb(0.3, 0.36, 0.16, 0.02)), at(rb(0.26, 0.32, 0.012, 0.006), [0, 0, -0.085]),
+          ...[[-0.07, 0.08], [0, 0.08], [0.07, 0.08]].map(([x, y]) => at(cy(0.018, 0.02), [x, y, -0.1], X)), at(cy(0.03, 0.03), [0, -0.06, -0.1], X),
+          at(cy(0.02, 0.55), [0.1, -0.5, 0.0]), at(stackLight, [0.1, 0.4, 0]), at(rb(0.06, 0.03, 0.06, 0.01), [0.1, -0.78, 0])) }),
+      k({ id: `CNV.s${s.n}.refl`, name: `Conveyor #${s.n} photo-eye reflector`, category: "sensor", mat: "paintRed", pos: [s.x1 - 0.5, BELT_Y + 0.2, 0.47], explodeVector: [0, 0.3, 0.3], explodeOrder: 0,
+        geo: comp(at(rb(0.05, 0.05, 0.012, 0.004)), at(rb(0.04, 0.12, 0.02, 0.004), [0, -0.06, 0.012])) }),
       k({ id: `CNV.s${s.n}.drum`, name: `Conveyor #${s.n} drive drum`, category: "mechanical", mat: "rubber", pos: [s.x1 - 0.1, BELT_Y - 0.08, 0], rot: Z, explodeVector: [0.3, 0.2, 0], explodeOrder: 1, geo: cy(0.06, 0.84),
         motion: (rt) => ({ rot: [PI / 2, (rt.phase.belt ?? 0) / 0.06, 0] }) }),
       k({ id: `CNV.s${s.n}.motor`, name: `Conveyor #${s.n} drive motor 0.55 kW`, category: "electrical", mat: "paintBlue", pos: [s.x1 - 0.25, BELT_Y - 0.3, 0.7], rot: Z, explodeVector: [0, 0, 0.8], explodeOrder: 1, assemblyAxis: "Z",

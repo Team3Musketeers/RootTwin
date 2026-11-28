@@ -157,6 +157,14 @@ so the IK, joint sliders, exploded view, X-ray and red faults still work; the ca
 servo or reducer fault lights up the link that holds it. A test checks that every weld-seam point and pallet slot is
 reachable. Without the files the procedural arms are used.
 
+**Real AMRs and conveyors (28/11)**: the three AGVs are **MiR 250** class AMRs using the real body shell, drive
+wheels, caster wheels and SICK safety LiDAR meshes of [DFKI-NI/mir_robot](https://github.com/DFKI-NI/mir_robot)
+(BSD-3-Clause, `frontend/public/models/amr/NOTICE.md`), placed from the MiR URDF and scaled x1.3 to carry Euro pallets;
+the lift deck, LED band, battery, motors and controller stay twin parts (X-ray shows them). No openly licensed conveyor
+model with separate parts exists, so the conveyors are rebuilt in code like a real line: alternating belt and
+**live-roller** sections, yellow UHMW-faced guide rails on brackets, photo-eye + reflector pairs, a local control
+station with stack light per section, and cable ducts.
+
 **Component-level backend** (`roottwin/components.py`, `roottwin/faults/components.yaml`): the backend now knows the
 physical components of M1-M6 (24 components, ids = the CAD part ids of the 3D model, checked by `tests/test_components.py`).
 Each fault code is located on one component; the live snapshot carries `components` (per-part health %, local channels

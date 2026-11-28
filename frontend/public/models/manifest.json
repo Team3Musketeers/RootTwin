@@ -21,5 +21,26 @@
       -1.22,
       0
     ]
+  },
+  "PLC": {
+    "url": "/models/sketchfab/cabinet/cabinet.glb",
+    "replace": true,
+    "rotY": -1.5708,
+    "keep": [
+      "PLC.main",
+      "PLC.mcb",
+      "PLC.psu",
+      "PLC.rack",
+      "PLC.cpu",
+      "PLC.cpuLed",
+      "PLC.io1",
+      "PLC.io2",
+      "PLC.io3",
+      "PLC.io4",
+      "PLC.vfd1",
+      "PLC.vfd2",
+      "PLC.fan1",
+      "PLC.fan2"
+    ]
   }
 }

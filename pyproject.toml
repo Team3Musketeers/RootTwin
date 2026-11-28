@@ -23,6 +23,7 @@ dependencies = [
     "joblib>=1.4",
     "matplotlib>=3.8",
     "networkx>=3.2",                   # T15 propagation graph (live detector)
+    "asyncua>=1.1",                    # T26 OPC UA server / PLC connector
 ]
 
 [project.optional-dependencies]

@@ -172,6 +172,21 @@ the press is one AI-generated mesh (fades and X-rays only). The twin's diagnosab
 `keep` (CNC spindle bearing, spindle motor, cutter; the press drive gearbox, mounted on the crown with `keepOffset`),
 so Locate still explodes and turns the exact faulty bearing red.
 
+**Real PLC cabinets and guarding (28/11)**: the PLC bank is "Electrical Distribution Cabinet" by Arsen Ismailov and the
+robot-cell guarding uses "Wire Mesh Panels" by GameDevMoot (both CC BY 4.0, Sketchfab, credits in NOTICE.md). The PLC
+rack, I/O cards, 24 V supply, inverters and fans stay inside the cabinet (`keep`), so their faults still light up in X-ray.
+
+**T26 enterprise mode (28/11)**: `config/enterprise.yaml` drives both directions.
+- **OPC UA server** (`roottwin/enterprise/opcua_server.py`, compose service `opcua`, `opc.tcp://localhost:4840/roottwin/`):
+  the line as an address space `RootTwin/line1/<M1_VIS ... M6_CNV>/{Status, State, Faults, Wear, Vibration, Temperature,
+  Current, Cadence, SpeedFactor*, Start*, Stop*}` and `Line/{Running*, PartsOk, ThroughputPerH, Availability}`
+  (* writable). A SCADA, MES, Node-RED or Factory I/O (as OPC UA client) reads the twin live; writes become standard
+  logged commands (`issued_by: enterprise`). Security policy None: demo network only.
+- **Connector** (`roottwin/enterprise/connector.py`, `docker compose --profile enterprise up -d connector`): maps PLC
+  OPC UA nodes or MQTT topics to machine sensors (with scale / offset) and publishes them as normal telemetry, so the
+  AI detector, root-cause graph, Bayesian network and 3D twin run on real plant data unchanged. Tested against a
+  simulated PLC (`tests/test_enterprise.py`).
+
 **Component-level backend** (`roottwin/components.py`, `roottwin/faults/components.yaml`): the backend now knows the
 physical components of M1-M6 (24 components, ids = the CAD part ids of the 3D model, checked by `tests/test_components.py`).
 Each fault code is located on one component; the live snapshot carries `components` (per-part health %, local channels

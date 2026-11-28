@@ -21,7 +21,7 @@ export const CAMERA_PRESETS: Record<CameraPreset, { label: string; pos: [number,
   machining: { label: "Machining & press", pos: [-6, 9, 15], target: [-5, 1.5, 0] },
   assembly: { label: "Robotic welding cell", pos: [19, 7, 11], target: [14, 1.5, 0] },
   packaging: { label: "Palletizing & outfeed", pos: [30, 8, 9], target: [24.5, 1, -1.5] },
-  control: { label: "Electrical & control", pos: [3, 4, -6], target: [0, 1.4, -13] },
+  control: { label: "Electrical & control", pos: [2.5, 2.3, -8.6], target: [0, 1.3, -13] },   // below the catwalk
 };
 
 /** Imperative camera API used by the HUD (presets, fly to machine/part, reset). */

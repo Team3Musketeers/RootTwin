@@ -1,0 +1,26 @@
+# T26 enterprise mode - one file for both directions.
+#
+# server: the twin publishes its line as an OPC UA server (SCADA, MES, Node-RED, Factory I/O as OPC UA client...)
+#   nodes: RootTwin/<line>/<Machine>/{Status, State, Vibration, Temperature, Current, Cadence, Wear, Faults,
+#          SpeedFactor (writable), Start (writable), Stop (writable)} and RootTwin/<line>/Line/{Running (writable),
+#          PartsOk, ThroughputPerH, Availability}
+#   names follow the 3D twin: M1 = VIS, M2 = CNC, M3 = PRS, M4 = WLD, M5 = PAL, M6 = CNV
+#
+# sources: real data INTO the twin. Each mapping turns an external value into a sensor reading of a line machine,
+#   published as normal telemetry (factory/<line>/<machine>/telemetry), so the AI detector, diagnosis and 3D twin
+#   use it exactly like simulated data. A machine fed by a source is marked source=plc / source=mqtt.
+line: line1
+server:
+  endpoint: opc.tcp://0.0.0.0:4840/roottwin/
+  security: none            # demo network only; production: Basic256Sha256 + certificates (asyncua supports both)
+sources:
+  opcua: []
+    # - endpoint: opc.tcp://192.168.0.10:4840          # e.g. Siemens S7-1500 / Codesys / PLCSIM Advanced
+    #   period_s: 1.0
+    #   map:
+    #     - {node: "ns=3;s=\"DB_Press\".\"MotorCurrent\"", machine: M3, sensor: current}
+    #     - {node: "ns=3;s=\"DB_Press\".\"BearingTemp\"",  machine: M3, sensor: temperature, scale: 1.0, offset: 0.0}
+  mqtt: []
+    # - topic: plant/press/vibration_rms                # payload: a number, or JSON {"value": 2.3}
+    #   machine: M3
+    #   sensor: vibration

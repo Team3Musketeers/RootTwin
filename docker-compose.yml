@@ -123,6 +123,35 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  # T26 enterprise mode: the twin as an OPC UA server (SCADA / MES / PLC / Factory I/O connect to opc.tcp://localhost:4840/roottwin/)
+  opcua:
+    image: roottwin-app
+    container_name: twin-opcua
+    command: ["python", "-m", "roottwin.enterprise.opcua_server"]
+    environment:
+      MQTT_HOST: mosquitto
+    ports:
+      - "${OPCUA_PORT:-4840}:4840"
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+
+  # T26 real data in (OPC UA PLC nodes / MQTT topics mapped in config/enterprise.yaml): docker compose --profile enterprise up -d connector
+  connector:
+    image: roottwin-app
+    container_name: twin-connector
+    profiles: ["enterprise"]
+    command: ["python", "-m", "roottwin.enterprise.connector"]
+    environment:
+      MQTT_HOST: mosquitto
+    volumes:
+      - ./config:/app/config:ro
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+
   # T25 experiment tracking (optional): docker compose --profile mlops up -d mlflow ; then MLFLOW_TRACKING_URI=http://localhost:5000
   mlflow:
     image: ghcr.io/mlflow/mlflow:v2.17.2

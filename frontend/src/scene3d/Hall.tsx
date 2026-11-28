@@ -1,8 +1,9 @@
 // Factory hall: concrete floor (wear texture, yellow markings, hazard zones), open-top H-beam columns with floodlights,
 // walls, high-bay racks, safety fences, catwalk. Repetitive elements are instanced (drei <Instances> = InstancedMesh).
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
-import { Instance, Instances, Line, MeshReflectorMaterial } from "@react-three/drei";
+import { Instance, Instances, Line, MeshReflectorMaterial, useGLTF } from "@react-three/drei";
+import { useAssetAvailable } from "./assetLoader";
 import { AGV_PATH, HALL, RACK } from "../twin/layout";
 import { euroPallet } from "../twin/machines/line";
 import { MACHINES } from "../twin/registry";
@@ -176,7 +177,36 @@ const FENCES: [number, number, number, number][] = [
   // palletizing cell: AGV gates between x 26.2 and 28.2 (front and back), conveyor opening at x 20.8
   [20.8, -4.6, 26.2, -4.6], [28.2, -4.6, 28.2, 2.2], [20.8, 2.2, 26.2, 2.2], [20.8, -4.6, 20.8, -0.8], [20.8, 0.8, 20.8, 2.2],
 ];
+/** Real welded-mesh guarding panel ("Wire Mesh Panels" by GameDevMoot, CC BY 4.0), normalised to 1 m wide, 1 m high,
+ *  base at y = 0, centred; each fence bay scales it to its length and to 1.9 m height. */
+const FENCE_URL = "/models/sketchfab/fence/fence.glb";
+function MeshPanels({ panels }: { panels: { p: [number, number, number]; len: number; yaw: number }[] }) {
+  const { scene } = useGLTF(FENCE_URL, false, true);
+  const { geometry, material } = useMemo(() => {
+    scene.updateMatrixWorld(true);
+    let mesh: THREE.Mesh | undefined;
+    scene.traverse((o) => { if (!mesh && (o as THREE.Mesh).isMesh && /Large/i.test(o.name + (o.parent?.name ?? ""))) mesh = o as THREE.Mesh; });
+    scene.traverse((o) => { if (!mesh && (o as THREE.Mesh).isMesh) mesh = o as THREE.Mesh; });
+    const g = mesh!.geometry.clone().applyMatrix4(mesh!.matrixWorld);
+    // stand the panel up: thinnest axis -> z (panel normal), then the longer remaining axis -> x (width)
+    const dims = () => { g.computeBoundingBox(); return g.boundingBox!.getSize(new THREE.Vector3()); };
+    let d = dims();
+    if (d.y < d.x && d.y < d.z) { g.rotateX(Math.PI / 2); d = dims(); }
+    if (d.x < d.y && d.x < d.z) { g.rotateY(Math.PI / 2); d = dims(); }
+    g.computeBoundingBox();
+    const b2 = g.boundingBox!, s2 = b2.getSize(new THREE.Vector3()), c = b2.getCenter(new THREE.Vector3());
+    g.translate(-c.x, -b2.min.y, -c.z).scale(1 / s2.x, 1 / s2.y, 1);
+    return { geometry: g, material: mesh!.material as THREE.Material };
+  }, [scene]);
+  return (
+    <Instances limit={128} geometry={geometry} material={material} castShadow frustumCulled={false}>
+      {panels.map((x, i) => <Instance key={i} position={[x.p[0], 0.08, x.p[2]]} rotation={[0, x.yaw, 0]} scale={[x.len, 1.95, 1]} />)}
+    </Instances>
+  );
+}
+
 function Fences() {
+  const real = useAssetAvailable(FENCE_URL);
   const { posts, panels } = useMemo(() => {
     const posts: [number, number, number][] = [], panels: { p: [number, number, number]; len: number; yaw: number }[] = [];
     for (const [x0, z0, x1, z1] of FENCES) {
@@ -188,16 +218,17 @@ function Fences() {
   }, []);
   return (
     <group>
-      <Instances limit={128}>
+      <Instances limit={128} frustumCulled={false}>
         <boxGeometry args={[0.06, 2.2, 0.06]} />
         <meshStandardMaterial color="#facc15" metalness={0.3} />
         {posts.map((p, i) => <Instance key={i} position={p} />)}
       </Instances>
-      <Instances limit={128}>
-        <boxGeometry args={[1, 1.9, 0.02]} />
-        <meshStandardMaterial color="#a3e635" transparent opacity={0.45} metalness={0.2} roughness={0.6} />
-        {panels.map((x, i) => <Instance key={i} position={x.p} rotation={[0, x.yaw, 0]} scale={[x.len, 1, 1]} />)}
-      </Instances>
+      {real ? <Suspense fallback={null}><MeshPanels panels={panels} /></Suspense> : (
+        <Instances limit={128} frustumCulled={false}>
+          <boxGeometry args={[1, 1.9, 0.02]} />
+          <meshStandardMaterial color="#a3e635" transparent opacity={0.45} metalness={0.2} roughness={0.6} />
+          {panels.map((x, i) => <Instance key={i} position={x.p} rotation={[0, x.yaw, 0]} scale={[x.len, 1, 1]} />)}
+        </Instances>)}
     </group>
   );
 }

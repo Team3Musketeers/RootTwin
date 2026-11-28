@@ -117,7 +117,7 @@ MACHINE_COMMANDS: dict[str, type[BaseModel]] = {
 }
 COMMAND_PARAMS = {**LINE_COMMANDS, **MACHINE_COMMANDS}
 CommandName = Literal[tuple(COMMAND_PARAMS)]  # type: ignore[valid-type]
-IssuedBy = Literal["ui", "rl", "scenario", "script", "human", "baseline"]
+IssuedBy = Literal["ui", "rl", "scenario", "script", "human", "baseline", "enterprise"]
 
 
 class Command(BaseModel):

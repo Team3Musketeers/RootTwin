@@ -17,6 +17,7 @@ COPY pyproject.toml ./
 RUN mkdir roottwin && touch roottwin/__init__.py && \
     pip install --no-cache-dir . numpy==2.2.4 scikit-learn==1.6.1 shap==0.54.1 gymnasium==1.4.0 ortools==9.15.6755 anthropic
 COPY roottwin/ ./roottwin/
+COPY config/ ./config/
 COPY docs/manuals/ ./docs/manuals/
 COPY scripts/run_line.py ./scripts/
 COPY --from=web /web/dist ./frontend/dist

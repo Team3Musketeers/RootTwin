@@ -176,6 +176,22 @@ low-poly decoration if wanted.
 
 Planning: [docs/Planning_Projet_IA_Usine_3D_v2.xlsx](docs/Planning_Projet_IA_Usine_3D_v2.xlsx) (v2 = interactive production, see below).
 
+## Person A's tasks (done 28/11)
+
+| Task | What exists now | Result | Where |
+|---|---|---|---|
+| T03 / T06 / T12 | Real-time line engine (speed factor, 6 machines, buffers, parts, orders, wear, 4 sensors with noise and degradation, workers with skills answering `dispatch_worker`), dataset v1 = 200 labelled scenarios | used by live demo, detector, RL, benchmark | `roottwin/line.py`, `scripts/run_line.py`, `data/processed/sim_v0.parquet` |
+| **T14** calibration | Health index of the 100 C-MAPSS FD001 engines fitted as HI = u^k; CWRU bearing RMS ratios | **k = 3.25** (real wear is flat then accelerates; was linear) · bearing vibration at failure **×3.95** (was ×3.0). Applied to every gradual ramp of the catalog (`ROOTTWIN_NO_CALIBRATION=1` to disable) | `scripts/calibrate.py`, `roottwin/faults/calibration.json`, `reports/calibration.json` |
+| **T15** propagation graph | Material-flow graph M1→M6 (networkx): a failure starves downstream and blocks upstream; each alarmed candidate is scored by the alarms it explains + intrinsic anomaly (vibration / heat / current) | root cause right in **87 %** of 200 held-out multi-alarm scenarios (old shortcut 41.5 %) | `roottwin/diagnosis/graph.py` |
+| **T19** Bayesian network | Factory level Root → {abnormal, idle} per machine, machine level Family → symptoms; CPTs learned from 500 simulated scenarios / sim_v0, exact inference (numpy; pgmpy would pull in PyTorch) | root cause **71 %** (graph is better: it encodes the propagation exactly) · fault family from one machine **64 %** vs 32 % majority | `roottwin/diagnosis/bayes.py`, `params.json`, `scripts/eval_diagnosis.py`, `reports/diagnosis.json` |
+| T15/T19 live | The live detector's alarm payload carries `diagnosis` (root, consequences, propagation path, ranking, Bayesian P(root), fault family) instead of the shortcut | | `roottwin/live_detector.py` |
+| **T23** diagnosis UI | *Faults* tab: line graph with the root (red) and propagation path (amber), consequences, Bayesian bars, fault family, explanation, alarm timeline; click a node to select the machine | | `frontend/src/ui/RightPanel.tsx` |
+| **T25** MLOps + demo | `roottwin/tracking.py` logs every run to MLflow (`docker compose --profile mlops up -d mlflow`, `MLFLOW_TRACKING_URI=http://localhost:5000`) or `reports/runs.jsonl`; `python scripts/demo.py` starts the stack and plays the jury scenario (bearing wear on M3 → early AI alarm → root cause → repair) | | `scripts/demo.py` |
+| T34 visual polish | ISA-101 HMI, PBR / scanned assets, AO + bloom, guided Showcase tour | | see above |
+
+Not done: T26 (postponed in the plan), T31 rehearsals (people). The detector / RL reports were trained before
+calibration; re-run `train_detector.py`, `train_ppo.py` and `benchmark.py` to refresh them on the calibrated simulator.
+
 ## Team
 
 | | Learning path |

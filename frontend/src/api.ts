@@ -26,7 +26,10 @@ export interface BackendComponent {
 }
 export interface BackendEvent {
   machine_id: string; event_type: string; fault_code?: string | null; state?: string | null;
+  received?: number;                                     // client time the event arrived (ms)
   payload?: { explanation?: string; root_cause?: string; is_root_cause?: boolean; component?: string | null;
+    diagnosis?: { root: string | null; explained: string[]; path: [string, string][]; ranking: [string, number][];
+      bayes_root?: [string, number][]; family?: [string, number][] };
     copilot?: { text: string; sources: string[]; mode: string } | null; candidates?: { fault_code: string; match: number }[] };
 }
 
@@ -44,7 +47,7 @@ export function useLive() {
       ws.onmessage = (m) => {
         const msg = JSON.parse(m.data);
         if (msg.type === "snapshot") setSnapshot(msg.data);
-        else setEvents((e) => [msg.data, ...e].slice(0, 60));
+        else setEvents((e) => [{ ...msg.data, received: Date.now() }, ...e].slice(0, 60));
       };
       ws.onclose = () => {
         setConnected(false);

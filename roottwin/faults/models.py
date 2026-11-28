@@ -19,6 +19,7 @@ class SensorEffect(BaseModel, extra="forbid"):
     sensor: str
     kind: Literal["ramp", "step", "offset", "noise", "stuck"]
     magnitude: float
+    shape: float = Field(default=1.0, gt=0, description="effect grows as progress**shape (T14: fitted on C-MAPSS)")
 
 
 class RepairSpec(BaseModel, extra="forbid"):
@@ -65,9 +66,28 @@ class Catalog(BaseModel):
         return self
 
 
+CALIBRATION_PATH = Path(__file__).with_name("calibration.json")
+
+
+def _calibrate(data: dict) -> dict:
+    """T14: apply scripts/calibrate.py results (degradation shape, real amplitudes) unless ROOTTWIN_NO_CALIBRATION is set."""
+    import json
+    import os
+    if os.getenv("ROOTTWIN_NO_CALIBRATION") or not CALIBRATION_PATH.exists():
+        return data
+    cal = json.loads(CALIBRATION_PATH.read_text(encoding="utf-8"))
+    for code, spec in data.get("faults", {}).items():
+        for e in spec.get("effects", []):
+            if spec.get("onset") == "gradual" and e["kind"] == "ramp":
+                e.setdefault("shape", cal["degradation_shape"])
+            if e["sensor"] in cal.get("overrides", {}).get(code, {}):
+                e["magnitude"] = cal["overrides"][code][e["sensor"]]
+    return data
+
+
 @lru_cache(maxsize=4)
 def _load(path: str) -> Catalog:
-    return Catalog.model_validate(yaml.safe_load(Path(path).read_text(encoding="utf-8")))
+    return Catalog.model_validate(_calibrate(yaml.safe_load(Path(path).read_text(encoding="utf-8"))))
 
 
 def load_catalog(path: str | Path = CATALOG_PATH) -> dict[str, FaultSpec]:
@@ -119,11 +139,11 @@ class ActiveFault:
                 continue
             v = out[e.sensor]
             if e.kind == "ramp":
-                v = v * (1 + e.magnitude * p)
+                v = v * (1 + e.magnitude * p ** e.shape)
             elif e.kind == "step":
                 v = v * (1 + e.magnitude)
             elif e.kind == "offset":
-                v = v + e.magnitude * p
+                v = v + e.magnitude * p ** e.shape
             elif e.kind == "noise":
                 v = v + rng.normal(0.0, e.magnitude * abs(v) * p) if p > 0 else v
             elif e.kind == "stuck":

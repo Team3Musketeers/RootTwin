@@ -1,0 +1,14 @@
+{
+  "cmapss_health_index_fit": {
+    "model": "HI = u^k",
+    "k": 3.25,
+    "mse": 0.0018,
+    "before": "linear ramp (k = 1)"
+  },
+  "cwru_rms_ratio_fault_over_normal": {
+    "ball": 1.89,
+    "inner_race": 3.95,
+    "outer_race": 9.03
+  },
+  "bearing_wear_vibration_at_failure": "x3.95 (was x3.0)"
+}

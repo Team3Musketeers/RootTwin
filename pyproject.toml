@@ -22,6 +22,7 @@ dependencies = [
     "scikit-learn>=1.5",
     "joblib>=1.4",
     "matplotlib>=3.8",
+    "networkx>=3.2",                   # T15 propagation graph (live detector)
 ]
 
 [project.optional-dependencies]
@@ -33,7 +34,8 @@ dev = ["pytest>=8", "httpx>=0.27", "jupyter", "seaborn", "nbconvert", "nbformat"
 include = ["roottwin*"]
 
 [tool.setuptools.package-data]
-"roottwin.faults" = ["*.yaml"]
+"roottwin.faults" = ["*.yaml", "*.json"]
+"roottwin.diagnosis" = ["*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

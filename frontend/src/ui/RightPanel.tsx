@@ -1,10 +1,10 @@
 // Right inspector drawer: Controls (line or machine), Exploded / BOM, I/O, Faults; component engineering card. ISA-101 styling.
 import { useState } from "react";
-import { api } from "../api";
+import { api, type BackendEvent } from "../api";
 import type { Action } from "../services/floor";
 import { liveComponents } from "../services/productionBridge";
 import { ioTags } from "../twin/io";
-import { MACHINE, allParts, partById } from "../twin/registry";
+import { BACKEND_TO_MACHINE, MACHINE, allParts, partById } from "../twin/registry";
 import type { TwinSim } from "../twin/sim";
 import type { Fault, MachineRuntime, Part } from "../twin/types";
 import { Btn, Dot, GuardedEstop, ValueControl } from "./common";
@@ -83,6 +83,7 @@ interface Props {
   onIsolate: () => void; onExploded: () => void; onPart: (id: string) => void; onLocate: (f: Fault) => void; onFramePart: () => void;
   onInject: (machineId: string, code: string) => void; onClear: (f: Fault) => void; animateAssembly: () => void; reset: () => void;
   act: (a: Action) => void; me: string; onRepair: (f: Fault) => void; onClaim: (machineId: string) => void;
+  alarms: BackendEvent[]; onMachine: (machineId: string) => void;
 }
 
 /** Compact command bar: neutral icon + label buttons, colour only on the button's state meaning. */
@@ -259,7 +260,7 @@ function Diagnostics(p: Props) {
           </div>
         ))}
       </section>
-      <RootCause sim={p.sim} />
+      <RootCause alarms={p.alarms} onMachine={p.onMachine} />
       <section className="space-y-1.5">
         <H>Fault simulator</H>
         <select value={mid} onChange={(e) => setMid(e.target.value)} aria-label="machine" className={select}>
@@ -309,5 +310,47 @@ export function RightPanel(p: Props) {
   );
 }
 
-/** T23 root-cause panel: filled in with the backend diagnosis (propagation graph + Bayesian posterior). */
-function RootCause(_: { sim: TwinSim }) { return null; }
+/** T23 root-cause panel: propagation graph of the line with the root and its path highlighted (T15), Bayesian
+ *  posteriors over the root machine and the fault family (T19), the explanation (T22) and the alarm timeline. */
+function RootCause({ alarms, onMachine }: { alarms: BackendEvent[]; onMachine: (id: string) => void }) {
+  const latest = alarms.find((a) => a.payload?.diagnosis);
+  if (!latest) return (<section><H>Root cause</H><p className="text-hmi-dim">No AI alarm from the line. The diagnosis (propagation graph + Bayesian network) appears here when the backend detector raises one.</p></section>);
+  const d = latest.payload!.diagnosis!, nodes = ["M1", "M2", "M3", "M4", "M5", "M6"], alarmed = new Set(alarms.slice(0, 12).map((a) => a.machine_id));
+  const onPath = (a: string, b: string) => d.path.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
+  const X = (i: number) => 14 + i * 50;
+  const bar = (rows: [string, number][], fmt: (k: string) => string) => rows.map(([k, v]) => (
+    <div key={k} className="flex items-center gap-2"><span className="w-24 truncate text-hmi-muted">{fmt(k)}</span>
+      <span className="h-1 flex-1 rounded bg-hmi-raised"><span className="block h-1 rounded bg-hmi-muted" style={{ width: `${v * 100}%` }} /></span><span className="num w-9 text-right">{(v * 100).toFixed(0)}%</span></div>));
+  const name = (b: string) => (BACKEND_TO_MACHINE[b] ? MACHINE[BACKEND_TO_MACHINE[b]].name.split(" ")[0] : b);
+  return (
+    <section className="space-y-2">
+      <H>Root cause · propagation graph</H>
+      <svg viewBox="0 0 280 54" className="w-full" role="img" aria-label={`Root cause ${d.root}`}>
+        {nodes.slice(0, -1).map((n, i) => (
+          <line key={n} x1={X(i) + 9} y1={20} x2={X(i + 1) - 9} y2={20} stroke={onPath(n, nodes[i + 1]) ? "var(--color-warn)" : "#2a313d"} strokeWidth={onPath(n, nodes[i + 1]) ? 2 : 1} markerEnd="url(#arr)" />))}
+        <defs><marker id="arr" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#5b6475" /></marker></defs>
+        {nodes.map((n, i) => {
+          const root = n === d.root, ex = d.explained.includes(n);
+          return (
+            <g key={n} onClick={() => BACKEND_TO_MACHINE[n] && onMachine(BACKEND_TO_MACHINE[n])} className="cursor-pointer">
+              <circle cx={X(i)} cy={20} r={9} fill="#141820" stroke={root ? "var(--color-alarm)" : ex ? "var(--color-warn)" : alarmed.has(n) ? "#8a94a6" : "#2a313d"} strokeWidth={root ? 2.5 : 1.5} />
+              <text x={X(i)} y={23.5} textAnchor="middle" fontSize="8.5" fill="#e6eaf0" fontFamily="var(--font-mono)">{n}</text>
+              <text x={X(i)} y={44} textAnchor="middle" fontSize="7" fill={root ? "var(--color-alarm)" : "#8a94a6"}>{name(n)}</text>
+            </g>);
+        })}
+      </svg>
+      <div className="text-[11px]">
+        <Row k="Root cause (graph, T15)" v={<span className="text-alarm">{d.root ? `${d.root} · ${name(d.root)}` : "-"}</span>} />
+        <Row k="Consequences" v={d.explained.length ? d.explained.join(", ") : "none"} />
+      </div>
+      {d.bayes_root && <div className="space-y-1 text-[11px]"><div className="text-[10px] text-hmi-dim">Bayesian network (T19) · P(root)</div>{bar(d.bayes_root, (k) => (k === "none" ? "no fault" : `${k} ${name(k)}`))}</div>}
+      {d.family && <div className="space-y-1 text-[11px]"><div className="text-[10px] text-hmi-dim">Fault family on {d.root}</div>{bar(d.family, (k) => k)}</div>}
+      {latest.payload?.explanation && <p className="border-l-2 border-hmi-line pl-2 text-[11px] text-hmi-muted">{latest.payload.explanation}</p>}
+      <div className="num space-y-0.5 text-[10.5px]">
+        {alarms.slice(0, 8).map((a, i) => (
+          <div key={i} className="flex gap-2"><span className="text-hmi-dim">{a.received ? new Date(a.received).toLocaleTimeString() : ""}</span>
+            <span className={a.machine_id === d.root ? "text-alarm" : "text-hmi-muted"}>{a.machine_id}</span><span className="truncate text-hmi-muted">{a.fault_code ?? "anomaly"}{a.payload?.is_root_cause ? " · root" : ""}</span></div>))}
+      </div>
+    </section>
+  );
+}

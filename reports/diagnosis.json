@@ -1,0 +1,16 @@
+{
+  "factory_root_cause": {
+    "test_scenarios": 200,
+    "with_several_alarms": 108,
+    "accuracy": {
+      "shortcut": 0.415,
+      "graph": 0.87,
+      "bayes": 0.71
+    }
+  },
+  "machine_fault_family": {
+    "test_rows": 16438,
+    "accuracy": 0.64,
+    "majority_baseline": 0.317
+  }
+}

@@ -290,7 +290,8 @@ export default function App() {
               onClaim={toggleClaim} toggleGuides={() => setGuides(!guides)} toggleLabels={() => setLabels(!labels)}
               onIsolate={() => machine && isolate(machine)} onExploded={() => changeMode(mode === "exploded" ? "isolate" : "exploded")}
               onPart={(id) => { setPart(id); setTimeout(() => cameraApi.fit(id, 2.5), 30); }} onLocate={locate} onFramePart={framePart}
-              onInject={inject} onClear={clear} animateAssembly={animateAssembly} reset={resetSim} />}
+              onInject={inject} onClear={clear} animateAssembly={animateAssembly} reset={resetSim}
+              alarms={live.events.filter((e) => e.event_type === "alarm")} onMachine={(id) => { selectMachine(id); setTab("controls"); }} />}
           </aside>
           {toast && (
             <div key={toast.t} className={`glass pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 px-3 py-1.5 text-[12px] shadow-xl ${toast.level === "fault" ? "shadow-[inset_3px_0_0_var(--color-alarm)]" : "shadow-[inset_3px_0_0_var(--color-ok)]"}`}>

@@ -25,7 +25,9 @@ def test_bearing_wear_progression():
     assert f.state(10 + 120 * 0.5) == "degraded"
     assert f.state(10 + 120) == "down"
     s = f.apply(NOMINAL, 130)
-    assert s["vibration"] == pytest.approx(2.0 * 3.0) and s["temperature"] == pytest.approx(45 * 1.3)
+    assert s["vibration"] == pytest.approx(2.0 * 3.95) and s["temperature"] == pytest.approx(45 * 1.3)   # T14: CWRU-calibrated amplitude
+    half = f.apply(NOMINAL, 10 + 60)["vibration"] / 2.0 - 1                                                # T14: C-MAPSS shape u^3.25
+    assert half == pytest.approx(2.95 * 0.5 ** 3.25, rel=1e-6)                                              # flat first, then accelerates
     assert s["cadence"] == NOMINAL["cadence"]
 
 

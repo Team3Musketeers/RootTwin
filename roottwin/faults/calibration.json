@@ -1,0 +1,9 @@
+{
+  "degradation_shape": 3.25,
+  "overrides": {
+    "BEARING_WEAR": {
+      "vibration": 2.95
+    }
+  },
+  "source": "scripts/calibrate.py on C-MAPSS FD001 (shape) and CWRU 12k drive end (bearing RMS ratio)"
+}

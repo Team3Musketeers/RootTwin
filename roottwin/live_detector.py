@@ -19,10 +19,14 @@ import time
 from collections import deque
 from datetime import datetime, timezone
 
+import numpy as np
 import pandas as pd
 import paho.mqtt.client as mqtt
 
 from roottwin.components import component_for
+from roottwin.diagnosis import bayes
+from roottwin.diagnosis.graph import diagnose as graph_diagnose, line_graph
+from roottwin.diagnosis.symptoms import SYMPTOMS, symptoms
 from roottwin.copilot import Copilot
 from roottwin.detection.events import threshold_for_false_alarms
 from roottwin.detection.explain import AlertExplainer
@@ -81,6 +85,7 @@ class LiveDetector:
         self.idle: dict[str, bool] = {}
         self.seen = {m: 0 for m in machines}
         self.running = True
+        self.graph = line_graph(machines)
 
     def set_running(self, running: bool) -> None:
         """Line stopped by the operator: stop scoring and forget the windows (no alarm on a planned stop)."""
@@ -89,6 +94,20 @@ class LiveDetector:
                 b.clear()
             self.seen = {m: 0 for m in self.machines}
         self.running = running
+
+    def diagnose(self) -> dict:
+        """T15 propagation graph over the current alarms + T19 Bayesian posteriors (when trained)."""
+        sym = {m: symptoms({s: float(np.mean([r[s] for r in b])) for s in SENSORS}) for m, b in self.buf.items() if b}
+        sym = {m: sym.get(m, {k: False for k in SYMPTOMS}) for m in self.machines}
+        d = graph_diagnose(self.graph, set(self.alarmed), sym).to_dict()
+        nets = bayes.load()
+        if nets:
+            post = nets["factory"].posterior(bayes.factory_evidence(sym))
+            d["bayes_root"] = sorted(([k, round(v, 3)] for k, v in post.items()), key=lambda kv: -kv[1])[:3]
+            if d["root"]:
+                fam = nets["machine"].posterior({k: v for k, v in sym[d["root"]].items() if k in bayes.MACHINE_SYMPTOMS})
+                d["family"] = sorted(([k, round(v, 3)] for k, v in fam.items()), key=lambda kv: -kv[1])[:3]
+        return d
 
     def on_telemetry(self, machine: str, sensors: dict) -> dict | None:
         """Returns an alarm payload when a new alarm starts, else None."""
@@ -113,16 +132,15 @@ class LiveDetector:
         self.alarmed.add(machine)
         self.idle[machine] = is_idle(self.buf[machine][-1])
         e = self.exp.explain(row, machine)
-        # shortcut: root = most upstream alarmed machine that is not merely idle; T15 graph propagation replaces it
-        causes = [m for m in self.alarmed if not self.idle.get(m)]
-        root = min(causes, key=self.machines.index) if causes else None
+        diag = self.diagnose()
+        root = diag["root"]
         codes = [c for c, m in e.candidates if m > 0]
         advice = self.copilot.ask("What do I do?", codes[:1] or None, e.text).to_dict() if root == machine else None
         return {"event_type": "alarm", "severity": 4, "fault_code": codes[0] if codes else None,
                 "payload": {"score": round(score, 4), "threshold": round(self.det.threshold, 4),
                             "explanation": e.text, "contributions": e.contributions,
                             "candidates": [{"fault_code": c, "match": m} for c, m in e.candidates],
-                            "root_cause": root, "is_root_cause": root == machine,
+                            "root_cause": root, "is_root_cause": root == machine, "diagnosis": diag,
                             "component": component_for(machine, codes[0]) if codes else None,   # suspected part (3D locate)
                             "copilot": advice}}
 

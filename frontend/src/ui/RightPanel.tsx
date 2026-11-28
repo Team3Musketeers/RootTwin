@@ -3,12 +3,13 @@ import { useState } from "react";
 import { api } from "../api";
 import type { Action } from "../services/floor";
 import { liveComponents } from "../services/productionBridge";
+import { ioTags } from "../twin/io";
 import { MACHINE, allParts, partById } from "../twin/registry";
 import type { TwinSim } from "../twin/sim";
 import type { Fault, MachineRuntime, Part } from "../twin/types";
 import { Btn, Dot, ValueControl } from "./common";
 
-export type Tab = "controls" | "exploded" | "diagnostics";
+export type Tab = "controls" | "exploded" | "io" | "diagnostics";
 
 function defaultTelemetry(p: Part, rt: MachineRuntime, fault?: Fault): Record<string, string> {
   const hot = fault ? 1 : 0;
@@ -83,6 +84,13 @@ function LineControls({ sim, reset, act }: { sim: TwinSim; reset: () => void; ac
         <Btn c="amber" onClick={() => act({ m: "reset", id: "PLC" })} disabled={st !== "ESTOP"}>Reset E-stop</Btn>
         <Btn onClick={() => sim.stepCycle()} disabled={st === "RUNNING" || st === "ESTOP"}>⏭ Step</Btn>
         <Btn c="ghost" onClick={reset}>↺ Reset sim</Btn>
+      </div>
+      <div>
+        <div className="mb-1 text-[11px] text-slate-400">Simulation speed (Factory I/O time scale)</div>
+        <div className="grid grid-cols-5 gap-1">
+          {[[0, "⏸ 0"], [0.1, "0.1×"], [0.25, "0.25×"], [1, "1×"], [2, "2×"]].map(([v, l]) => (
+            <Btn key={l} c={sim.line.timeScale === v ? "sky" : "ghost"} onClick={() => act({ m: "speed", v: v as number })}>{l}</Btn>))}
+        </div>
       </div>
       <ValueControl label="Master line speed / throughput" unit="%" min={0} max={150} step={1} value={sim.line.speedPct} onChange={(v) => { sim.line.speedPct = v; }} />
       <ValueControl label="Conveyor belt speed" unit="m/s" min={0} max={1.2} step={0.01} value={sim.rt.CNV.set.speed} actual={sim.rt.CNV.act.speed} onChange={(v) => act({ m: "set", id: "CNV", key: "speed", v })} />
@@ -166,6 +174,35 @@ function Exploded(p: Props) {
   );
 }
 
+/** Live I/O inspector (Factory I/O tags): DI / DO with force On / Off / release, AI / AO with 0-10 V scaling. */
+function IoTable(p: Props) {
+  if (!p.machine) return <p className="text-xs text-slate-400">Select a machine to see its I/O tags (digital inputs / outputs, analog values).</p>;
+  const id = p.machine, tags = ioTags(p.sim, id);
+  const force = (tag: string, v: number | null, part?: string) => p.act({ m: "force", id, tag, v, part });
+  return (
+    <div className="space-y-2 text-[11px]">
+      <p className="text-slate-400">Forcing a sensor overrides its signal; on a part with a failure mode it also injects that fault (red part) - Factory I/O style failure training.</p>
+      {(["DI", "DO", "AI", "AO"] as const).map((k) => (
+        <section key={k}>
+          <h4 className="mb-0.5 text-[10px] uppercase tracking-wide text-slate-500">{{ DI: "Digital inputs (sensor → PLC)", DO: "Digital outputs (PLC → actuator)", AI: "Analog inputs (actual)", AO: "Analog outputs (setpoint)" }[k]}</h4>
+          <table className="w-full font-mono tabular-nums">
+            <tbody>{tags.filter((t) => t.kind === k).map((t) => (
+              <tr key={t.name} className={t.forced ? "bg-amber-500/15" : ""}>
+                <td className="truncate py-px pr-1 text-slate-300" title={t.partId ? partById(t.partId)?.name : t.name}>{t.partId ? partById(t.partId)?.name ?? t.name : t.name.split(".").slice(1).join(".")}</td>
+                {typeof t.value === "boolean"
+                  ? <td className="w-8"><span className={`inline-block h-2.5 w-2.5 rounded-full ${t.value ? "bg-emerald-400 shadow-[0_0_6px_#34d399]" : "bg-slate-600"}`} /></td>
+                  : <td className="w-28 text-right text-slate-100">{t.value.toFixed(2)} {t.unit} <span className="text-slate-500">{t.volts} V</span></td>}
+                <td className="w-24 text-right">{typeof t.value === "boolean" && (t.forced
+                  ? <button onClick={() => force(t.name, null)} className="rounded bg-amber-500 px-1 text-slate-950">FORCED ✕</button>
+                  : <><button onClick={() => force(t.name, 1, t.partId)} className="rounded px-1 text-slate-400 hover:bg-white/10">On</button>
+                      <button onClick={() => force(t.name, 0, t.partId)} className="rounded px-1 text-slate-400 hover:bg-white/10">Off</button></>)}</td>
+              </tr>))}</tbody>
+          </table>
+        </section>))}
+    </div>
+  );
+}
+
 function Diagnostics(p: Props) {
   const [mid, setMid] = useState(p.machine ?? "PRS");
   const [code, setCode] = useState("");
@@ -222,10 +259,10 @@ export function RightPanel(p: Props) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div role="tablist" className="flex gap-1 border-b border-white/10 px-2 pt-2">
-        {(["controls", "exploded", "diagnostics"] as Tab[]).map((t) => (
+        {(["controls", "exploded", "io", "diagnostics"] as Tab[]).map((t) => (
           <button key={t} role="tab" aria-selected={p.tab === t} onClick={() => p.setTab(t)}
                   className={`rounded-t px-2.5 py-1 text-xs capitalize ${p.tab === t ? "bg-slate-800 text-white" : "text-slate-400 hover:text-slate-200"}`}>
-            {t === "exploded" ? "Exploded / BOM" : t}{t === "diagnostics" && p.sim.faults.length > 0 && <span className="ml-1 rounded-full bg-red-600 px-1.5 text-[10px] text-white">{p.sim.faults.length}</span>}
+            {t === "exploded" ? "Exploded / BOM" : t === "io" ? "I/O" : t}{t === "diagnostics" && p.sim.faults.length > 0 && <span className="ml-1 rounded-full bg-red-600 px-1.5 text-[10px] text-white">{p.sim.faults.length}</span>}
           </button>))}
       </div>
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-2.5">
@@ -235,6 +272,7 @@ export function RightPanel(p: Props) {
           ? <MachineControls sim={p.sim} id={p.machine} explode={p.explode} setExplode={p.setExplode} onIsolate={p.onIsolate} onExploded={p.onExploded} onXray={p.toggleXray} act={p.act} me={p.me} onClaim={p.onClaim} />
           : <LineControls sim={p.sim} reset={p.reset} act={p.act} />)}
         {p.tab === "exploded" && <Exploded {...p} />}
+        {p.tab === "io" && <IoTable {...p} />}
         {p.tab === "diagnostics" && <Diagnostics {...p} />}
       </div>
     </div>

@@ -1,6 +1,7 @@
 // Multiplayer factory floor client (/ws/floor): presence of the other workers, machine claims and the shared
 // operator action stream. Every client runs the same TwinSim and applies the same actions, so a mistake on one
 // screen (overload -> red part -> line stop) happens on all of them. Works offline: actions then apply locally only.
+import { MACHINE } from "../twin/registry";
 import type { TwinSim } from "../twin/sim";
 
 export type Action =
@@ -10,7 +11,9 @@ export type Action =
   | { m: "repair" | "clear"; id: string; code: string; by?: string }
   | { m: "fault"; id: string; code: string }
   | { m: "claim"; id: string; who: string | null }
-  | { m: "line"; state: "RUNNING" | "PAUSED" };
+  | { m: "line"; state: "RUNNING" | "PAUSED" }
+  | { m: "speed"; v: number }
+  | { m: "force"; id: string; tag: string; v: number | null; part?: string };   // v null = release
 
 export interface Player { id: string; name: string; role: string; x: number; z: number; yaw: number }
 
@@ -32,6 +35,15 @@ export function applyAction(sim: TwinSim, a: Action, from = "you") {
     case "fault": sim.injectFault(a.id, a.code); break;             // fault simulator (operator mistakes come from the sim rules)
     case "claim": sim.claim(a.id, a.who); break;
     case "line": sim.setLine(a.state); break;
+    case "force": {                                // Factory I/O forcing: a forced sensor of a part with a failure mode = that fault
+      if (a.v === null) { delete sim.forced[a.tag]; sim.log("info", `${from}: released ${a.tag}`); break; }
+      sim.forced[a.tag] = a.v;
+      sim.log("warning", `${from}: forced ${a.tag} = ${a.v}`);
+      const spec = a.part ? sim.rt[a.id] && MACHINE[a.id].faults.find((f) => f.partId === a.part) : undefined;
+      if (spec) sim.injectFault(a.id, spec.code, "local", `${spec.label} (forced ${a.tag})`);
+      break;
+    }
+    case "speed": sim.line.timeScale = Math.min(4, Math.max(0, a.v)); sim.log("info", `${from}: simulation speed ${sim.line.timeScale}×`); break;
   }
 }
 

@@ -12,7 +12,7 @@ import { cameraApi } from "./TwinCanvas";
 export const HAT: Record<string, string> = { operator: "#facc15", technician: "#2563eb", maintenance: "#f97316", supervisor: "#f8fafc" };
 
 /** Local player state (read by the HUD and the control stations for the reach check). */
-export const player = { x: -14, z: 6.2, yaw: Math.PI, speed: 0 };
+export const player = { x: -14, z: 6.2, yaw: Math.PI, speed: 0, goal: null as { x: number; z: number } | null };
 
 // machine footprints (world AABB, rotation ignored: all machines are axis-aligned) the worker cannot walk through
 const OBSTACLES = MACHINES.filter((m) => m.type !== "agv" && m.id !== "CNV").map((m) => ({
@@ -87,17 +87,28 @@ export function LocalWorker() {
     const r = (k.has("d") || k.has("arrowright") ? 1 : 0) - (k.has("a") || k.has("arrowleft") ? 1 : 0);
     const az = c?.azimuthAngle ?? 0;
     let dx = -Math.sin(az) * f + Math.cos(az) * r, dz = -Math.cos(az) * f - Math.sin(az) * r;
+    if (f || r) player.goal = null;                    // keys override click-to-walk
+    else if (player.goal) {
+      dx = player.goal.x - player.x; dz = player.goal.z - player.z;
+      if (Math.hypot(dx, dz) < 0.15) { player.goal = null; dx = dz = 0; }
+    }
     const len = Math.hypot(dx, dz);
     const speed = len ? (k.has("shift") ? 3.4 : 1.6) : 0;
     if (len) {
       dx /= len; dz /= len;
       const step = Math.min(dt, 0.1) * speed;
       const nx = player.x + dx * step, nz = player.z + dz * step;
-      if (!blocked(nx, player.z)) player.x = nx;       // slide along walls
-      if (!blocked(player.x, nz)) player.z = nz;
+      const bx = blocked(nx, player.z), bz = blocked(player.x, nz);
+      if (!bx) player.x = nx;                            // slide along walls
+      if (!bz) player.z = nz;
+      if (bx && bz) player.goal = null;                  // walked into a machine: stop
       const target = Math.atan2(dx, dz);
       player.yaw += Math.atan2(Math.sin(target - player.yaw), Math.cos(target - player.yaw)) * Math.min(1, dt * 10);
-      c?.moveTo(player.x, 1.2, player.z, false);         // camera follows, the user can still orbit with the mouse
+      if (!v.fp) c?.moveTo(player.x, 1.2, player.z, false);   // camera follows, the user can still orbit with the mouse
+    }
+    if (v.fp && c) {                                     // first person: the camera orbits a few cm around the eye = mouse look
+      c.moveTo(player.x, 1.7, player.z, false);
+      player.yaw = az + Math.PI;
     }
     player.speed = speed;
     walk.current += dt * speed * 4.5;
@@ -107,10 +118,16 @@ export function LocalWorker() {
     v.floor.pose(player.x, player.z, player.yaw);
   });
   return (
-    <group ref={g} visible={v.walk}>
+    <>
+    {v.walk && (                                         // click on the floor to walk there
+      <mesh rotation-x={-Math.PI / 2} position={[0, 0.006, 0]} onClick={(e) => { e.stopPropagation(); player.goal = { x: e.point.x, z: e.point.z }; }}>
+        <planeGeometry args={[200, 200]} /><meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>)}
+    <group ref={g} visible={v.walk && !v.fp}>
       <Body hat={HAT[v.floor.me?.role ?? "technician"]} walk={walk} />
       <mesh rotation-x={-Math.PI / 2} position={[0, 0.01, 0]}><ringGeometry args={[0.38, 0.45, 32]} /><meshBasicMaterial color="#38bdf8" transparent opacity={0.7} /></mesh>
     </group>
+    </>
   );
 }
 

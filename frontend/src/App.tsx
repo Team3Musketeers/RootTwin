@@ -35,6 +35,7 @@ export default function App() {
   const [labels, setLabels] = useState(true);
   const [xray, setXray] = useState(false);
   const [walk, setWalk] = useState(false);
+  const [fp, setFp] = useState(false);
   const [floorV, setFloorV] = useState(0);
   const floorRef = useRef<FloorClient | null>(null);
   if (!floorRef.current) floorRef.current = new FloorClient(() => simRef.current, () => setFloorV((x) => x + 1));
@@ -89,12 +90,17 @@ export default function App() {
     return best;
   };
   const toggleClaim = (id: string) => act({ m: "claim", id, who: sim.owner[id] === floor.myName ? null : floor.myName });
-  const toggleWalk = () => {
-    const on = !walk;
-    setWalk(on);
-    if (on) { setMode("factory"); setMachine(null); setPart(null); cameraApi.controls?.setLookAt(player.x - 3, 3.2, player.z + 5, player.x, 1.2, player.z, true); }
-    else cameraApi.preset(preset);
+  /** Factory I/O-like cameras: 1 orbit, 2 follow the worker, 3 first person. */
+  const setCamera = (cam: "orbit" | "follow" | "fp") => {
+    const c = cameraApi.controls;
+    setWalk(cam !== "orbit"); setFp(cam === "fp");
+    if (c) { c.minDistance = cam === "fp" ? 0.05 : 1.5; c.maxDistance = cam === "fp" ? 0.05 : 120; }
+    if (cam === "orbit") { cameraApi.preset(preset); return; }
+    setMode("factory"); setMachine(null); setPart(null);
+    if (cam === "fp") c?.setLookAt(player.x - Math.sin(player.yaw) * 0.05, 1.7, player.z - Math.cos(player.yaw) * 0.05, player.x, 1.7, player.z, false);
+    else c?.setLookAt(player.x - 3, 3.2, player.z + 5, player.x, 1.2, player.z, true);
   };
+  const toggleWalk = () => setCamera(walk ? "orbit" : "follow");
   const resetSim = () => { simRef.current = new TwinSim(); setMachine(null); setPart(null); setMode("factory"); };
   const changeMode = (m: ViewMode) => {
     if (m !== "factory" && !machine) return;
@@ -108,6 +114,7 @@ export default function App() {
       if ((e.target as HTMLElement).closest?.("input, select, textarea")) return;
       const k = e.key.toLowerCase();
       if (k === "p") { toggleWalk(); return; }
+      if (k === "1" || k === "2" || k === "3") { setCamera(k === "1" ? "orbit" : k === "2" ? "follow" : "fp"); return; }
       if (walk && k === "e") { const id = nearest(); if (id) { setMachine(id); setTab("controls"); setRight(true); } return; }
       if (walk && k === "c") { const id = nearest(); if (id) toggleClaim(id); return; }
       if (k === " ") { e.preventDefault();
@@ -126,9 +133,9 @@ export default function App() {
 
   const view: ViewState = useMemo(() => ({
     sim, mode, machine, part, hoverPart, explode, guides, xray, labels, quality,
-    selectMachine, selectPart, hover: setHover, isolate, walk, floor, act,
+    selectMachine, selectPart, hover: setHover, isolate, walk, fp, floor, act,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- floorV: re-render scene consumers when players join/leave/claim
-  }), [sim, mode, machine, part, hoverPart, explode, guides, xray, labels, quality, selectMachine, selectPart, isolate, walk, floor, act, floorV]);
+  }), [sim, mode, machine, part, hoverPart, explode, guides, xray, labels, quality, selectMachine, selectPart, isolate, walk, fp, floor, act, floorV]);
   const near = walk ? nearest() : null;
 
   const health = sim.health(), k = sim.kpis(), crit = sim.faults.filter((f) => f.severity === "critical");
@@ -157,6 +164,13 @@ export default function App() {
                   className={`rounded border border-white/10 px-2 py-0.5 text-xs ${xray ? "bg-cyan-600" : "hover:bg-white/10"}`}>⌗ X-ray</button>
           <button onClick={toggleWalk} aria-pressed={walk} title="Play as a factory worker: WASD to walk, Shift to run, E open machine, C take control (P)"
                   className={`rounded border border-white/10 px-2 py-0.5 text-xs ${walk ? "bg-amber-500 text-slate-950" : "hover:bg-white/10"}`}>🦺 Worker mode</button>
+          <div className="flex rounded border border-white/10 text-xs" role="group" aria-label="Camera">
+            {([["orbit", "1 Orbit"], ["follow", "2 Follow"], ["fp", "3 First person"]] as const).map(([c, l]) => {
+              const on = c === "orbit" ? !walk : c === "fp" ? fp : walk && !fp;
+              return <button key={c} onClick={() => setCamera(c)} aria-pressed={on} className={`px-1.5 py-0.5 ${on ? "bg-sky-600" : "hover:bg-white/10"}`}>{l}</button>;
+            })}
+          </div>
+          {sim.line.timeScale !== 1 && <span className="rounded bg-violet-600 px-1.5 py-0.5 text-[11px] font-bold">{sim.line.timeScale === 0 ? "SIM PAUSED" : `${sim.line.timeScale}× time`}</span>}
           {floor.connected
             ? <span className="flex items-center gap-1 text-[11px] text-slate-300"><span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: HAT[floor.me?.role ?? "operator"] }} />
                 {floor.me?.name} · {floor.players.size + 1} on the floor</span>
@@ -210,7 +224,7 @@ export default function App() {
           {walk && (
             <div className="pointer-events-none absolute bottom-10 left-1/2 -translate-x-1/2 rounded bg-slate-950/85 px-3 py-1.5 text-xs text-slate-200">
               {near ? <>At <b>{MACHINE[near].name}</b>{sim.owner[near] ? ` (operated by ${sim.owner[near]})` : " (unclaimed, automatic)"} · <b>E</b> open controls · <b>C</b> {sim.owner[near] === floor.myName ? "release" : "take control"} · click the panel buttons / drag the handwheel</>
-                : <>WASD walk · Shift run · walk up to a machine panel to operate it</>}
+                : <>WASD or click the floor to walk · Shift run · 1/2/3 cameras · walk up to a machine panel to operate it</>}
               {floor.denied && <span className="ml-2 text-red-300">⛔ {floor.denied}</span>}
             </div>)}
           <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded bg-slate-950/70 px-2 py-1 text-[10px] text-slate-400">

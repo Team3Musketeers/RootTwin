@@ -64,7 +64,7 @@ const partOf = (partId: string) => partById(partId)?.name ?? partId;
 
 export class TwinSim {
   t = 0;
-  line = { state: "RUNNING" as LineState, speedPct: 100, spawnInterval: 7, ghost: 0.08, lighting: 1 };
+  line = { state: "RUNNING" as LineState, speedPct: 100, spawnInterval: 7, ghost: 0.08, lighting: 1, timeScale: 1 };   // timeScale: 0 pause, 0.1 slow motion, 2 fast
   rt: Record<string, MachineRuntime> = {};
   wps: Workpiece[] = [];
   agvs: AgvState[] = [];
@@ -81,6 +81,7 @@ export class TwinSim {
   private palStep = -1;
   private palWp: number | null = null;
   private faultSeq = 1;
+  forced: Record<string, number> = {};             // I/O tag name -> forced value (1/0 for digital tags)
   owner: Record<string, string> = {};             // machine id -> player who claimed it (unclaimed machines run their automatic cycle)
   repairs: Record<string, { by: string; left: number }> = {};   // fault id -> repair in progress
 
@@ -216,6 +217,8 @@ export class TwinSim {
 
   // ------------------------------------------------------------ main loop
   tick(dt: number) {
+    dt *= this.line.timeScale;
+    if (dt <= 0) return;
     const n = Math.max(1, Math.ceil(dt / 0.05));
     for (let i = 0; i < n; i++) this.update(dt / n);
   }

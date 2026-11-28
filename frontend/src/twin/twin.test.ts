@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { explodeProgress } from "./explode";
 import { ARM, armFK, armIK } from "./kinematics";
 import { MACHINES, allParts, partById } from "./registry";
+import { applyAction } from "../services/floor";
+import { ioTags } from "./io";
 import { TwinSim } from "./sim";
 
 const run = (s: TwinSim, seconds: number) => { for (let t = 0; t < seconds; t += 0.1) s.tick(0.1); };
@@ -92,6 +94,21 @@ describe("TwinSim", () => {
     expect(s.faults).toHaveLength(0);
     s.setLine("RUNNING");
     expect(s.line.state).toBe("RUNNING");
+  });
+
+  it("I/O tags: every machine has DI/DO/AI/AO; forcing a sensor injects its fault; time scale 0 freezes", () => {
+    const s = new TwinSim();
+    for (const m of MACHINES) {
+      const kinds = new Set(ioTags(s, m.id).map((t) => t.kind));
+      expect([...kinds].sort(), m.id).toEqual(["AI", "AO", "DI", "DO"]);
+    }
+    const pe = ioTags(s, "DSP").find((t) => t.partId === "DSP.pe")!;
+    applyAction(s, { m: "force", id: "DSP", tag: pe.name, v: 0, part: "DSP.pe" });
+    expect(ioTags(s, "DSP").find((t) => t.name === pe.name)).toMatchObject({ value: false, forced: true });
+    expect(s.partFault("DSP.pe")).toBeTruthy();
+    applyAction(s, { m: "speed", v: 0 });
+    const t = s.t; s.tick(1);
+    expect(s.t).toBe(t);
   });
 
   it("E-stop freezes everything until reset", () => {

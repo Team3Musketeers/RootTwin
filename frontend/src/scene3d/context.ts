@@ -22,6 +22,7 @@ export interface ViewState {
   hover: (id: string | null) => void;
   isolate: (id: string) => void;
   walk: boolean;                   // worker mode: WASD avatar, panels need physical reach
+  fp: boolean;                     // first-person camera (eye at 1.7 m, mouse look)
   floor: FloorClient;              // multiplayer presence + claims
   act: (a: Action) => void;        // every operator action goes through here (shared with the other players)
 }

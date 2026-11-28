@@ -64,7 +64,7 @@ as one synchronised line:
 - **KPIs**: line status pill (Running / Warning / Fault-Stopped / E-stop), OEE = A × P × Q, parts/h, good parts, pallets.
 - **Live backend**: when the API is reachable, a backend machine that goes down or an AI alarm becomes a fault on the
   mapped component; injecting / clearing a fault in the twin is mirrored on the line (`/command`).
-- Keyboard: `P` worker mode (then WASD, `E` open, `C` take control) · `Space` run/pause · `E` exploded · `X` X-ray · `I` isolate · `F` locate fault · `R` reset camera · `Esc` back.
+- Keyboard: `1`/`2`/`3` orbit / follow / first person · `P` worker mode (then WASD, `E` open, `C` take control) · `Space` run/pause · `E` exploded · `X` X-ray · `I` isolate · `F` locate fault · `R` reset camera · `Esc` back.
 
 **CAD-grade visual layer (27/11, v3)** - no box placeholders any more:
 - **Geometry kernel** (`scene3d/cad.ts`): rounded/filleted housings, true **involute helical gears**, finned motors with fan
@@ -111,6 +111,28 @@ as one synchronised line:
   (`{"PRS": "/models/press.glb"}`); every mesh named after a part id (e.g. `PRS.brgIn`) replaces that part's
   procedural geometry and keeps exploded view, X-ray, selection and red faults. No model is shipped: free CC-BY
   industrial models (Sketchfab, GrabCAD) need per-part splitting and naming in Blender first.
+
+**Factory I/O-style controls (28/11, v5)**. Study notes: [docs/FACTORY_IO_STUDY.md](docs/FACTORY_IO_STUDY.md).
+- **Simulation speed**: ⏸ 0 / **0.1× slow motion** / 0.25× / 1× / 2× (Controls tab, shared with all players), plus Step
+  and Reset. A badge in the top bar shows when time is not 1×.
+- **I/O inspector** (tab *I/O*): every machine's tags derived from its parts - **DI** (E-stop circuit, mode switch,
+  guard, every sensor; photo-eyes really see the workpieces), **DO** (every actuator and motor, run / fault lamps),
+  **AI** actual values and **AO** setpoints with 0-10 V scaling. **Force On / Off** any digital tag; forcing a sensor
+  that has a failure mode injects that component fault (red part) - Factory I/O failure-injection training.
+- **Cameras**: `1` Orbit · `2` Follow worker · `3` First person (eye at 1.7 m, mouse look, WASD). In worker modes you
+  can also **click the floor to walk there**.
+
+**How to extend it**
+- *New machine*: add a `MachineDef` in `frontend/src/twin/machines/` (copy `dispenser` in `line.ts`): parts with
+  `geo` (CAD shapes from `build.ts`), `mat` (preset from `scene3d/materials.ts`), `explodeVector` / `explodeOrder`,
+  optional `motion(rt)` / `telemetry(rt)` / `housing`; list it in `twin/registry.ts`. Its control station, I/O tags,
+  exploded view, X-ray and BOM appear automatically; `npm test` checks the quality gate (≥ 15 parts).
+- *Fault-mapped component*: add `{ code, partId, label, severity, backendCodes }` to the machine's `faults`; for the
+  backend, add the component under its machine in `roottwin/faults/components.yaml` (ids must match, a test checks).
+- *Real `.glb` model*: export from Blender with each mesh named after its part id, drop it in
+  `frontend/public/models/`, add `{"PRS": "/models/press.glb"}` to `manifest.json`.
+- *New PBR material*: add a preset to `PRESETS` in `scene3d/materials.ts` (colour, metalness, roughness, procedural
+  normal / roughness maps) and its name to `MatName` in `twin/types.ts`.
 
 **Component-level backend** (`roottwin/components.py`, `roottwin/faults/components.yaml`): the backend now knows the
 physical components of M1-M6 (24 components, ids = the CAD part ids of the 3D model, checked by `tests/test_components.py`).

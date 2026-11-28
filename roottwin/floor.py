@@ -23,7 +23,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 router = APIRouter()
 
 ROLES = {"operator", "technician", "maintenance", "supervisor"}
-ACTIONS = {"start", "stop", "estop", "reset", "mode", "set", "repair", "claim", "fault", "clear", "line"}
+ACTIONS = {"start", "stop", "estop", "reset", "mode", "set", "repair", "claim", "fault", "clear", "line", "speed", "force"}
 MAX_MSG, LOG_LEN, OUTBOX = 2000, 400, 256
 
 
@@ -58,8 +58,10 @@ class Floor:
         mid = a.get("id")
         if mid is not None and (not isinstance(mid, str) or len(mid) > 16):
             return None, "bad machine id"
-        if "v" in a and not isinstance(a["v"], (int, float)):
+        if "v" in a and not (a["v"] is None and a["m"] == "force") and not isinstance(a["v"], (int, float)):
             return None, "bad value"
+        if any(not isinstance(a.get(k, ""), str) or len(a.get(k, "")) > 80 for k in ("tag", "part", "key", "code")):
+            return None, "bad field"
         owner = self.claims.get(mid) if mid else None
         if a["m"] == "claim":
             if a.get("who") is None:                  # release

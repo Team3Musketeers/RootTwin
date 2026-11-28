@@ -112,4 +112,5 @@ async def run(cfg: dict | None = None, publish=None, stop: asyncio.Event | None 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+    logging.getLogger("asyncua").setLevel(logging.WARNING)       # its INFO logs every publish cycle
     asyncio.run(run())

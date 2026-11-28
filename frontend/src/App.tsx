@@ -7,13 +7,13 @@ import type { ViewMode, ViewState } from "./scene3d/context";
 import { FloorClient, type Action } from "./services/floor";
 import { pushFault, useBackendSync } from "./services/productionBridge";
 import { HAT, player } from "./scene3d/Worker";
-import { MACHINE, MACHINES, machineOfPart } from "./twin/registry";
+import { MACHINE, MACHINES, ZONES, machineOfPart } from "./twin/registry";
 import { TwinSim } from "./twin/sim";
 import type { Fault } from "./twin/types";
 import { Hierarchy } from "./ui/Hierarchy";
+import { Btn, Segmented } from "./ui/common";
 import { RightPanel, type Tab } from "./ui/RightPanel";
 
-const HEALTH = { RUNNING: "bg-emerald-600", WARNING: "bg-amber-500 text-slate-950", FAULT: "bg-red-600 animate-pulse", PAUSED: "bg-slate-600" };
 
 export default function App() {
   const [page, setPage] = useState<"twin" | "play">("twin");
@@ -42,6 +42,7 @@ export default function App() {
   const floor = floorRef.current;
   const act = useCallback((a: Action) => floor.act(a), [floor]);
   const [who, setWho] = useState({ name: "", role: "technician" });
+  const [help, setHelp] = useState(false);
   // big transient banner for what matters on the floor: faults, line stops, repairs (checked at the 5 Hz HUD refresh)
   const seenEvent = useRef<unknown>(null);
   const [toast, setToast] = useState<{ text: string; level: string; t: number } | null>(null);
@@ -185,63 +186,84 @@ export default function App() {
   const health = sim.health(), k = sim.kpis(), crit = sim.faults.filter((f) => f.severity === "critical");
   const first = crit[0] ?? sim.faults[0];
 
+  const status = sim.line.state === "ESTOP" ? { c: "alarm", t: "E-STOP" }
+    : health === "FAULT" ? { c: "alarm", t: `FAULT • ${sim.faults.length} ALARM${sim.faults.length > 1 ? "S" : ""}` }
+    : health === "WARNING" ? { c: "warn", t: `WARNING • ${sim.faults.length}` }
+    : health === "PAUSED" ? { c: "dim", t: sim.line.state === "STOPPED" ? "STOPPED" : "PAUSED" } : { c: "ok", t: "RUNNING" };
+  const zone = machine ? ZONES.find((z) => z.machines.includes(machine)) : null;
+  const viewSeg = xray ? "xray" : mode;
+  const camSeg = fp ? "fp" : walk ? "follow" : "orbit";
+  const drawer = "glass absolute flex flex-col overflow-hidden transition-transform duration-200";
+
   return (
-    <div className="flex h-screen flex-col bg-slate-950 text-slate-100">
-      <header className="flex flex-wrap items-center gap-3 border-b border-white/10 bg-[#0b1220] px-3 py-1.5">
-        <h1 className="text-base font-bold tracking-tight">Root<span className="text-sky-400">Twin</span></h1>
-        <nav className="flex gap-1" aria-label="Page">
-          {([["twin", "Digital twin"], ["play", "Play: AI maintenance"]] as const).map(([p, l]) => (
-            <button key={p} onClick={() => setPage(p)} aria-pressed={page === p} className={`rounded px-2 py-0.5 text-xs ${page === p ? "bg-sky-600" : "text-slate-400 hover:bg-white/10"}`}>{l}</button>))}
-        </nav>
+    <div className="flex h-screen flex-col bg-hmi-bg text-hmi-text">
+      <header className="flex h-11 shrink-0 items-center gap-3 border-b border-hmi-line bg-hmi-panel px-3">
+        {/* left: brand, page, breadcrumb, line status */}
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="text-[13px] font-semibold tracking-tight">Root<span className="text-hmi-muted">Twin</span></span>
+          <Segmented label="Page" value={page} onChange={setPage} options={[["twin", "Twin"], ["play", "Play"]]} />
+          {page === "twin" && <>
+            <span className="hidden truncate text-[11px] text-hmi-muted xl:inline">Factory Floor{zone && <> / {zone.name}</>}{machine && <> / <span className="text-hmi-text">{MACHINE[machine].name}</span></>}</span>
+            <span className="flex items-center gap-1.5 whitespace-nowrap text-[11px] font-medium">
+              <span className={`h-2 w-2 rounded-full ${{ ok: "bg-ok", warn: "bg-warn", alarm: "bg-alarm animate-pulse", dim: "bg-hmi-dim" }[status.c]}`} />
+              <span className={{ ok: "text-ok", warn: "text-warn", alarm: "text-alarm", dim: "text-hmi-muted" }[status.c]}>{status.t}</span>
+              {first && <button onClick={() => locate(first)} className="ml-1 rounded-[3px] border border-hmi-line px-1.5 py-px text-hmi-muted hover:text-hmi-text" title={first.label}>Locate <kbd className="num">F</kbd></button>}
+            </span>
+          </>}
+        </div>
         {page === "twin" && <>
-          <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${HEALTH[health]}`}>{health === "FAULT" ? (sim.line.state === "ESTOP" ? "E-STOP" : "FAULT / STOPPED") : health}</span>
-          {first && (
-            <button onClick={() => locate(first)} className={`flex items-center gap-2 rounded px-2 py-0.5 text-xs ${crit.length ? "bg-red-600/90 hover:bg-red-500" : "bg-amber-500/90 text-slate-950"}`}>
-              ⚠ {sim.faults.length} fault{sim.faults.length > 1 ? "s" : ""} · {MACHINE[first.machineId].name.split(" ")[0]} – {first.label} <b>⌖ Locate (F)</b>
-            </button>)}
-          <div className="flex rounded border border-white/10 text-xs" role="group" aria-label="View mode">
-            {([["factory", "Full factory"], ["isolate", "Isolate machine"], ["exploded", "Exploded view"]] as const).map(([m, l]) => (
-              <button key={m} onClick={() => changeMode(m)} disabled={m !== "factory" && !machine} aria-pressed={mode === m}
-                      className={`px-2 py-0.5 disabled:opacity-40 ${mode === m ? "bg-sky-600" : "hover:bg-white/10"}`}>{l}</button>))}
+          {/* centre: view + camera */}
+          <div className="mx-auto flex items-center gap-2">
+            <Segmented label="View" value={viewSeg} onChange={(v) => (v === "xray" ? setXray(!xray) : (setXray(false), changeMode(v)))}
+              options={[["factory", "Overview"], ["isolate", "Isolate", !machine], ["exploded", "Exploded", !machine], ["xray", "X-Ray"]]} />
+            <Segmented label="Camera" value={camSeg} onChange={setCamera} options={[["orbit", "Orbit"], ["follow", "Worker"], ["fp", "First-Person"]]} />
+            {sim.line.timeScale !== 1 && <span className="num rounded-[3px] border border-warn/40 px-1.5 py-px text-[10px] text-warn">{sim.line.timeScale === 0 ? "SIM HOLD" : `${sim.line.timeScale}×`}</span>}
           </div>
-          <button onClick={() => setXray(!xray)} aria-pressed={xray} title="X-ray / cutaway: housings turn to glass (X)"
-                  className={`rounded border border-white/10 px-2 py-0.5 text-xs ${xray ? "bg-cyan-600" : "hover:bg-white/10"}`}>⌗ X-ray</button>
-          <button onClick={toggleWalk} aria-pressed={walk} title="Play as a factory worker: WASD to walk, Shift to run, E open machine, C take control (P)"
-                  className={`rounded border border-white/10 px-2 py-0.5 text-xs ${walk ? "bg-amber-500 text-slate-950" : "hover:bg-white/10"}`}>🦺 Worker mode</button>
-          <div className="flex rounded border border-white/10 text-xs" role="group" aria-label="Camera">
-            {([["orbit", "1 Orbit"], ["follow", "2 Follow"], ["fp", "3 First person"]] as const).map(([c, l]) => {
-              const on = c === "orbit" ? !walk : c === "fp" ? fp : walk && !fp;
-              return <button key={c} onClick={() => setCamera(c)} aria-pressed={on} className={`px-1.5 py-0.5 ${on ? "bg-sky-600" : "hover:bg-white/10"}`}>{l}</button>;
-            })}
-          </div>
-          {sim.line.timeScale !== 1 && <span className="rounded bg-violet-600 px-1.5 py-0.5 text-[11px] font-bold">{sim.line.timeScale === 0 ? "SIM PAUSED" : `${sim.line.timeScale}× time`}</span>}
-          {floor.connected
-            ? <span className="flex items-center gap-1 text-[11px] text-slate-300"><span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: HAT[floor.me?.role ?? "operator"] }} />
-                {floor.me?.name} · {floor.players.size + 1} on the floor</span>
-            : <form className="flex items-center gap-1 text-xs" onSubmit={(e) => { e.preventDefault(); floor.join(who.name || "Worker", who.role); }}>
-                <input value={who.name} onChange={(e) => setWho({ ...who, name: e.target.value })} placeholder="your name" maxLength={24} aria-label="Player name"
-                       className="w-24 rounded border border-white/10 bg-slate-900 px-1.5 py-0.5" />
-                <select value={who.role} onChange={(e) => setWho({ ...who, role: e.target.value })} aria-label="Role" className="rounded border border-white/10 bg-slate-900 px-1 py-0.5">
-                  {Object.keys(HAT).map((r) => <option key={r}>{r}</option>)}
-                </select>
-                <button className="rounded bg-sky-600 px-2 py-0.5 hover:bg-sky-500">Join floor</button>
-              </form>}
-          <button onClick={() => (touring ? stopTour() : showcase())} title="Visual inspection tour of every station: isolate, exploded view, X-ray, red fault"
-                  className={`rounded border border-white/10 px-2 py-0.5 text-xs ${touring ? "bg-violet-600" : "hover:bg-white/10"}`}>{touring ? `■ Stop tour (${touring.split(" ")[0]})` : "🎬 Showcase"}</button>
-          <select value="" aria-label="Inspect station" onChange={(e) => e.target.value && showcase(e.target.value)} className="rounded border border-white/10 bg-slate-900 px-1.5 py-0.5 text-xs">
-            <option value="">🔍 Inspect station…</option>
-            {MACHINES.filter((m) => m.type !== "agv" || m.id === "AGV1").map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-          </select>
-          <select value={preset} aria-label="Camera preset" onChange={(e) => { const p = e.target.value as CameraPreset; setPreset(p); cameraApi.preset(p); }}
-                  className="rounded border border-white/10 bg-slate-900 px-1.5 py-0.5 text-xs">
-            {Object.entries(CAMERA_PRESETS).map(([id, c]) => <option key={id} value={id}>📷 {c.label}</option>)}
-          </select>
-          <div className="ml-auto flex items-center gap-3 text-[11px] tabular-nums text-slate-400">
-            <span>OEE <b className="text-slate-100">{(k.oee * 100).toFixed(0)}%</b></span>
-            <span>A {(k.availability * 100).toFixed(0)} · P {(k.performance * 100).toFixed(0)} · Q {(k.quality * 100).toFixed(0)}</span>
-            <span>{k.throughput.toFixed(0)} parts/h</span><span>good {k.good}</span><span>pallets {k.pallets}</span>
-            <label className="flex items-center gap-1"><input type="checkbox" checked={quality} onChange={() => setQuality(!quality)} className="accent-sky-500" />HQ</label>
-            <span className={live.connected ? "text-emerald-400" : "text-slate-500"} title="Backend line link (faults, AI alarms, copilot)">{live.connected ? "● live" : "○ standalone"}</span>
+          {/* right: KPIs, link, player, view menu, drawers */}
+          <div className="flex items-center gap-3 text-[11px]">
+            <span className="num hidden text-hmi-muted lg:inline" title={`A ${(k.availability * 100).toFixed(0)} · P ${(k.performance * 100).toFixed(0)} · Q ${(k.quality * 100).toFixed(0)}`}>
+              OEE <span className="text-hmi-text">{(k.oee * 100).toFixed(0)}%</span> · <span className="text-hmi-text">{k.throughput.toFixed(0)}</span> parts/h · <span className="text-hmi-text">{k.good}</span> good
+            </span>
+            <span className={`flex items-center gap-1 ${live.connected ? "text-hmi-muted" : "text-hmi-dim"}`} title="Backend line link (faults, AI alarms, copilot)">
+              <span className={`h-1.5 w-1.5 rounded-full ${live.connected ? "bg-ok" : "bg-hmi-dim"}`} />{live.connected ? "Live" : "Standalone"}
+            </span>
+            <details className="relative">
+              <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-[4px] border border-hmi-line px-2 py-1 text-hmi-muted hover:text-hmi-text">
+                <span className="h-2 w-2 rounded-full" style={{ background: HAT[floor.me?.role ?? who.role] }} />
+                {floor.connected ? <>{floor.me?.name} · {floor.players.size + 1}</> : <>{who.role[0].toUpperCase() + who.role.slice(1)} • Join</>}
+              </summary>
+              <div className="glass absolute right-0 top-9 z-30 w-60 space-y-2 p-3">
+                {floor.connected ? <p className="text-hmi-muted">On the floor as <b className="text-hmi-text">{floor.me?.name}</b> ({floor.me?.role}). {floor.players.size} other worker(s).</p>
+                  : <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); floor.join(who.name || "Worker", who.role); }}>
+                      <input value={who.name} onChange={(e) => setWho({ ...who, name: e.target.value })} placeholder="Your name" maxLength={24} aria-label="Player name"
+                             className="w-full rounded-[4px] border border-hmi-line bg-hmi-bg px-2 py-1 outline-none focus:border-sel" />
+                      <select value={who.role} onChange={(e) => setWho({ ...who, role: e.target.value })} aria-label="Role" className="w-full rounded-[4px] border border-hmi-line bg-hmi-bg px-1.5 py-1">
+                        {Object.keys(HAT).map((r) => <option key={r}>{r}</option>)}
+                      </select>
+                      <Btn c="sky" className="w-full">Join floor</Btn>
+                    </form>}
+              </div>
+            </details>
+            <details className="relative">
+              <summary className="cursor-pointer list-none rounded-[4px] border border-hmi-line px-2 py-1 text-hmi-muted hover:text-hmi-text" aria-label="View menu">View ▾</summary>
+              <div className="glass absolute right-0 top-9 z-30 w-64 space-y-2 p-3">
+                <label className="block text-[10px] uppercase tracking-wider text-hmi-dim">Camera preset
+                  <select value={preset} onChange={(e) => { const p = e.target.value as CameraPreset; setPreset(p); cameraApi.preset(p); }} className="mt-1 w-full rounded-[4px] border border-hmi-line bg-hmi-bg px-1.5 py-1 text-[11px] normal-case tracking-normal text-hmi-text">
+                    {Object.entries(CAMERA_PRESETS).map(([id, c]) => <option key={id} value={id}>{c.label}</option>)}
+                  </select></label>
+                <label className="block text-[10px] uppercase tracking-wider text-hmi-dim">Inspect station
+                  <select value="" aria-label="Inspect station" onChange={(e) => e.target.value && showcase(e.target.value)} className="mt-1 w-full rounded-[4px] border border-hmi-line bg-hmi-bg px-1.5 py-1 text-[11px] normal-case tracking-normal text-hmi-text">
+                    <option value="">Select…</option>
+                    {MACHINES.filter((m) => m.type !== "agv" || m.id === "AGV1").map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select></label>
+                <Btn className="w-full" onClick={() => (touring ? stopTour() : showcase())}>{touring ? `Stop tour (${touring.split(" ")[0]})` : "Showcase tour (all stations)"}</Btn>
+                <label className="flex items-center gap-2 text-hmi-muted"><input type="checkbox" checked={quality} onChange={() => setQuality(!quality)} className="accent-[#3b82f6]" /> High quality rendering</label>
+              </div>
+            </details>
+            <div className="flex">
+              <button onClick={() => setLeft(!left)} aria-pressed={left} aria-label="Toggle hierarchy drawer" className={`rounded-l-[4px] border border-hmi-line px-1.5 py-1 ${left ? "text-hmi-text" : "text-hmi-dim"}`}>◧</button>
+              <button onClick={() => setRight(!right)} aria-pressed={right} aria-label="Toggle inspector drawer" className={`rounded-r-[4px] border border-l-0 border-hmi-line px-1.5 py-1 ${right ? "text-hmi-text" : "text-hmi-dim"}`}>◨</button>
+            </div>
           </div>
         </>}
       </header>
@@ -249,19 +271,18 @@ export default function App() {
       {page === "play" ? <Play /> : (
         <main className="relative min-h-0 flex-1 overflow-hidden">
           <TwinCanvas view={view} />
-          {/* left: hierarchy & BOM tree */}
-          <aside className={`absolute bottom-2 left-2 top-2 flex w-72 flex-col rounded-lg border border-white/10 bg-slate-950/85 backdrop-blur transition ${left ? "" : "-translate-x-[17.5rem]"}`}>
-            <div className="flex items-center justify-between px-3 py-2 text-xs font-semibold">Factory hierarchy & BOM
-              <button onClick={() => setLeft(!left)} aria-label="Toggle hierarchy panel" className="px-1 text-slate-400 hover:text-white">{left ? "⟨" : "⟩"}</button></div>
+          {/* left drawer: zones -> machines -> components */}
+          <aside className={`${drawer} bottom-14 left-3 top-3 w-[260px] ${left ? "" : "-translate-x-[280px]"}`} aria-label="Factory hierarchy">
+            <div className="flex items-center justify-between px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-hmi-muted">Hierarchy & BOM
+              <button onClick={() => setLeft(false)} aria-label="Close hierarchy" className="text-hmi-dim hover:text-hmi-text">✕</button></div>
             {left && <Hierarchy sim={sim} machine={machine} part={part} onMachine={(id) => { selectMachine(id); setTab("controls"); }}
                                 onPart={(mid, pid) => { setMachine(mid); setPart(pid); if (mode === "factory") setMode("isolate"); setTimeout(() => cameraApi.fit(pid, 2.5), 30); }} />}
           </aside>
-          {/* right: context controls / exploded / diagnostics */}
-          <aside className={`absolute bottom-2 right-2 top-2 flex w-[23rem] flex-col rounded-lg border border-white/10 bg-slate-950/85 backdrop-blur transition ${right ? "" : "translate-x-[21.5rem]"}`}>
-            <div className="flex items-center gap-2 px-3 pt-2 text-xs">
-              <button onClick={() => setRight(!right)} aria-label="Toggle control panel" className="px-1 text-slate-400 hover:text-white">{right ? "⟩" : "⟨"}</button>
-              <span className="font-semibold">{machine ? MACHINE[machine].name : "Production line"}</span>
-              {machine && <button onClick={() => selectMachine(null)} className="ml-auto text-slate-400 hover:text-white" aria-label="Deselect">✕</button>}
+          {/* right drawer: inspector */}
+          <aside className={`${drawer} bottom-14 right-3 top-3 w-[300px] ${right ? "" : "translate-x-[320px]"}`} aria-label="Inspector">
+            <div className="flex items-center gap-2 px-3 pt-2.5 text-[12px]">
+              <span className="truncate font-medium">{machine ? MACHINE[machine].name : "Production line"}</span>
+              {machine && <button onClick={() => selectMachine(null)} className="ml-auto text-hmi-dim hover:text-hmi-text" aria-label="Deselect">✕</button>}
             </div>
             {right && <RightPanel sim={sim} tab={tab} setTab={setTab} machine={machine} part={part} explode={explode}
               setExplode={(e) => { setExplode(e); if (machine && mode !== "exploded") setMode("exploded"); }}
@@ -272,18 +293,38 @@ export default function App() {
               onInject={inject} onClear={clear} animateAssembly={animateAssembly} reset={resetSim} />}
           </aside>
           {toast && (
-            <div key={toast.t} className={`pointer-events-none absolute left-1/2 top-16 -translate-x-1/2 rounded-lg px-4 py-2 text-sm font-semibold shadow-2xl ${toast.level === "fault" ? "bg-red-600/95 animate-pulse" : "bg-emerald-600/95"}`}>
-              {toast.level === "fault" ? "⚠ " : "✓ "}{toast.text}
+            <div key={toast.t} className={`glass pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 px-3 py-1.5 text-[12px] shadow-xl ${toast.level === "fault" ? "shadow-[inset_3px_0_0_var(--color-alarm)]" : "shadow-[inset_3px_0_0_var(--color-ok)]"}`}>
+              <span className={toast.level === "fault" ? "text-alarm" : "text-ok"}>{toast.level === "fault" ? "ALARM" : "OK"}</span> <span className="text-hmi-text">{toast.text}</span>
             </div>)}
           {walk && (
-            <div className="pointer-events-none absolute bottom-10 left-1/2 -translate-x-1/2 rounded bg-slate-950/85 px-3 py-1.5 text-xs text-slate-200">
-              {near ? <>At <b>{MACHINE[near].name}</b>{sim.owner[near] ? ` (operated by ${sim.owner[near]})` : " (unclaimed, automatic)"} · <b>E</b> open controls · <b>C</b> {sim.owner[near] === floor.myName ? "release" : "take control"} · click the panel buttons / drag the handwheel</>
-                : <>WASD or click the floor to walk · Shift run · 1/2/3 cameras · walk up to a machine panel to operate it</>}
-              {floor.denied && <span className="ml-2 text-red-300">⛔ {floor.denied}</span>}
+            <div className="glass pointer-events-none absolute bottom-14 left-1/2 -translate-x-1/2 px-3 py-1 text-[11px] text-hmi-muted">
+              {near ? <>At <span className="text-hmi-text">{MACHINE[near].name}</span>{sim.owner[near] ? ` · operated by ${sim.owner[near]}` : " · automatic"} · <kbd className="num text-hmi-text">E</kbd> controls · <kbd className="num text-hmi-text">C</kbd> {sim.owner[near] === floor.myName ? "release" : "take control"}</>
+                : <><kbd className="num text-hmi-text">WASD</kbd> / click floor to walk · <kbd className="num text-hmi-text">Shift</kbd> run · walk to a panel to operate it</>}
+              {floor.denied && <span className="ml-2 text-alarm">{floor.denied}</span>}
             </div>)}
-          <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded bg-slate-950/70 px-2 py-1 text-[10px] text-slate-400">
-            P worker mode · Click = select · double-click = isolate · Space run/pause · E exploded · X x-ray · I isolate · F locate fault · R reset camera · Esc back
+          {/* bottom dock: simulation playback */}
+          <div className="glass absolute bottom-3 left-1/2 flex h-9 -translate-x-1/2 items-center gap-1 px-1.5 text-[11px]">
+            <button onClick={() => act({ m: "line", state: sim.line.state === "RUNNING" ? "PAUSED" : "RUNNING" })} className="w-16 rounded-[3px] px-2 py-1 text-hmi-text hover:bg-white/5" aria-label="Run or pause the line">
+              {sim.line.state === "RUNNING" ? "❚❚ Pause" : "▶ Run"}</button>
+            <span className="h-4 w-px bg-hmi-line" />
+            {[0.1, 0.25, 1, 2].map((v) => (
+              <button key={v} onClick={() => act({ m: "speed", v })} aria-pressed={sim.line.timeScale === v}
+                      className={`num rounded-[3px] px-2 py-1 ${sim.line.timeScale === v ? "bg-sel/20 text-hmi-text shadow-[inset_0_-2px_0_var(--color-sel)]" : "text-hmi-muted hover:text-hmi-text"}`}>{v}×</button>))}
+            <span className="h-4 w-px bg-hmi-line" />
+            <button onClick={() => sim.stepCycle()} disabled={sim.line.state === "RUNNING"} className="rounded-[3px] px-2 py-1 text-hmi-muted hover:text-hmi-text disabled:opacity-35">Step</button>
+            <button onClick={resetSim} className="rounded-[3px] px-2 py-1 text-hmi-muted hover:text-hmi-text">Reset</button>
+            <span className="h-4 w-px bg-hmi-line" />
+            <button onClick={() => setHelp(!help)} aria-pressed={help} aria-label="Keyboard shortcuts" className="num rounded-[3px] px-2 py-1 text-hmi-muted hover:text-hmi-text">?</button>
           </div>
+          {help && (
+            <div className="glass absolute bottom-14 left-1/2 w-[420px] -translate-x-1/2 p-3 text-[11px]">
+              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-hmi-muted">Keyboard</div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-hmi-muted">
+                {[["Click / dbl-click", "select / isolate"], ["Space", "run / pause"], ["E", "exploded view"], ["X", "X-ray"], ["I", "isolate"], ["F", "locate fault"], ["R", "reset camera"], ["Esc", "back"],
+                  ["1 / 2 / 3", "orbit / worker / first person"], ["P", "worker mode"], ["WASD, Shift", "walk, run"], ["E / C (worker)", "open machine / take control"]].map(([key, what]) => (
+                  <div key={key} className="flex justify-between gap-2"><kbd className="num text-hmi-text">{key}</kbd><span className="text-right">{what}</span></div>))}
+              </div>
+            </div>)}
         </main>
       )}
     </div>

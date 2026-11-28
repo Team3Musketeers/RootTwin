@@ -126,10 +126,10 @@ function PartNode({ node, def, maxOrder, explodeRef, glb }: { node: Node; def: M
         </mesh>
         {mine && (
           <>
-            <Line ref={leader} points={[[0, 0, 0], labelOffset.toArray() as [number, number, number]]} color="#e2e8f0" lineWidth={1} transparent opacity={0.7} visible={false} />
+            <Line ref={leader} points={[[0, 0, 0], labelOffset.toArray() as [number, number, number]]} color="#8a94a6" lineWidth={0.75} transparent opacity={0.8} visible={false} />
             <Html position={labelOffset.toArray() as [number, number, number]} zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
-              <div ref={label} style={{ display: "none" }} className="-translate-y-1/2 whitespace-nowrap rounded-sm border-l-2 bg-slate-950/90 px-1.5 py-0.5 text-[10px] text-slate-100 shadow">
-                <span className="font-mono text-sky-300">{p.partNumber}</span> {p.name}
+              <div ref={label} style={{ display: "none" }} className="-translate-y-1/2 whitespace-nowrap border-l-2 rounded-[3px] border border-white/10 bg-[#141820]/90 px-1.5 py-0.5 text-[10px] text-[#e6eaf0] shadow-sm backdrop-blur">
+                <span style={{ fontFamily: "var(--font-mono)", color: "#8a94a6" }}>{p.partNumber}</span> {p.name}
               </div>
             </Html>
           </>

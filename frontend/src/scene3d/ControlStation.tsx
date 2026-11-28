@@ -59,13 +59,14 @@ export function ControlStation({ def }: { def: MachineDef }) {
     if (wheel.current && wheelCtl) wheel.current.rotation.z = -((rt.set[wheelCtl.key] ?? 0) - wheelCtl.min) / (wheelCtl.max - wheelCtl.min) * Math.PI * 6;
     if (key.current) key.current.rotation.y = rt.manual ? Math.PI / 4 : -Math.PI / 4;
     if (tag.current) {                              // panel tag only for the machine in focus or the one the worker stands at
-      const near = v.walk ? Math.hypot(player.x - world.x, player.z - world.z) < 4 : v.machine === def.id;
+      // one tag only: in worker mode at the panel you stand at, unless your own worker tag already says you operate it
+      const near = v.walk && Math.hypot(player.x - world.x, player.z - world.z) < 4 && v.sim.owner[def.id] !== v.floor.myName;
       tag.current.style.display = near && labelVisible(tmp.set(world.x, 1.5, world.z), camera, gl.domElement) ? "block" : "none";
     }
     if (tag.current && Math.round(clock.elapsedTime * 60) % 12 === 0) {      // ~5 Hz text refresh, no React render
       const o = v.sim.owner[def.id];
       tag.current.textContent = `${def.id} · ${rt.manual ? "MANUAL" : "AUTO"}${wheelCtl ? ` · ${wheelCtl.key} ${(rt.set[wheelCtl.key] ?? 0).toFixed(wheelCtl.step < 1 ? 2 : 0)}` : ""} · ${o ?? "unclaimed"}`;
-      tag.current.style.color = o ? "#7dd3fc" : "#cbd5e1";
+
     }
   });
 
@@ -121,7 +122,7 @@ export function ControlStation({ def }: { def: MachineDef }) {
         </group>
       )}
       <Html position={[0, 1.5, 0]} center zIndexRange={[12, 0]} style={{ pointerEvents: "none" }}>
-        <div ref={tag} className="whitespace-nowrap rounded bg-slate-950/80 px-1.5 py-0.5 text-[9px]">{def.id}</div>
+        <div ref={tag} style={{ display: "none", fontFamily: "var(--font-mono)" }} className="whitespace-nowrap rounded-[3px] border border-white/10 bg-[#141820]/90 px-1.5 py-0.5 text-[10px] text-[#e6eaf0] shadow-sm backdrop-blur">{def.id}</div>
       </Html>
     </group>
   );

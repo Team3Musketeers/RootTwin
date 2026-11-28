@@ -23,6 +23,7 @@ import paho.mqtt.client as mqtt
 
 from roottwin.components import snapshot_components
 from roottwin.contracts import Command
+from roottwin.enterprise.connector import external_machines
 from roottwin.line import Line
 
 TICK_S = 0.2
@@ -39,7 +40,14 @@ def main():
     p.add_argument("--random-faults", action="store_true", help="wear-driven random faults")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--scenario", default=None, help="scenario_id stamped on messages")
+    p.add_argument("--external", default=None,
+                   help="comma-separated machines fed by real data (default: those mapped in config/enterprise.yaml)")
     a = p.parse_args()
+    # T26: machines with a real source keep running in the line model (flow, faults, workers) but their sensor
+    # telemetry comes from the plant only; the snapshot shows the latest real readings for them
+    external = set(a.external.split(",")) - {""} if a.external is not None else external_machines()
+    if external:
+        print(f"real data for {sorted(external)}: simulated telemetry off for them", flush=True)
 
     line = Line(seed=a.seed, random_faults=a.random_faults)
     state = {"scale": a.time_scale, "scenario": a.scenario}
@@ -53,8 +61,16 @@ def main():
             body.setdefault("scenario_id", state["scenario"])
         client.publish(f"factory/{a.line}/{machine}/{kind}", json.dumps(body, default=str), qos=0)
 
+    last_sensors: dict[str, dict] = {}              # latest readings per machine (simulated or real) for the snapshot
+
     def on_message(_c, _u, msg):
         target = msg.topic.split("/")[2]
+        if msg.topic.endswith("/telemetry"):         # real plant readings for an external machine -> snapshot
+            body = json.loads(msg.payload)
+            if body.get("source") != "sim" and target in external:
+                with lock:
+                    last_sensors[target] = {**last_sensors.get(target, {}), **body.get("sensors", {})}
+            return
         try:
             cmd = Command.model_validate_json(msg.payload)
         except ValueError:
@@ -68,7 +84,8 @@ def main():
         print(f"  t={line.t:7.1f}  {cmd.command} {cmd.params or ''} -> {target}" + (f"  ({err})" if err else ""),
               flush=True)
 
-    client.on_connect = lambda c, *_: c.subscribe(f"factory/{a.line}/+/cmd", qos=1)
+    client.on_connect = lambda c, *_: (c.subscribe(f"factory/{a.line}/+/cmd", qos=1),
+                                       *[c.subscribe(f"factory/{a.line}/{m}/telemetry") for m in external])
     client.on_message = on_message
     client.connect(a.host, a.port)
     client.loop_start()
@@ -77,7 +94,6 @@ def main():
 
     last_state = {m.id: "ok" for m in line.machines}
     last_prod = {"ok": 0, "scrap": 0}
-    last_sensors: dict[str, dict] = {}
     next_minute = 0.0
     t_end = time.monotonic() + a.seconds if a.seconds else float("inf")
     print(f"line {a.line} running x{state['scale']} - Ctrl+C to stop", flush=True)
@@ -88,6 +104,8 @@ def main():
                 line.step(state["scale"] * TICK_S / 60)
                 while line.t >= next_minute:              # telemetry once per simulated minute
                     for i, m in enumerate(line.machines):
+                        if m.id in external:
+                            continue                          # the plant publishes these
                         last_sensors[m.id] = line.sensors(i)
                         pub(m.id, "telemetry", {"sensors": last_sensors[m.id]})
                     k = line.kpi

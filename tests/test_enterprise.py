@@ -86,3 +86,11 @@ def test_readings_reject_garbage_and_unknown_sensors():
     assert r.put({"machine": "M1", "sensor": "current"}, {"value": "3.5"}, "mqtt") and r.values["M1"]["current"] == 3.5
     with pytest.raises(ValueError):
         r.put({"machine": "M1", "sensor": "pressure"}, 1, "mqtt")
+
+
+def test_external_machines_come_from_the_source_mappings():
+    from roottwin.enterprise.connector import external_machines
+    cfg = {"sources": {"opcua": [{"endpoint": "opc.tcp://x", "map": [{"node": "n", "machine": "M3", "sensor": "current"}]}],
+                       "mqtt": [{"topic": "t", "machine": "M5", "sensor": "vibration"}]}}
+    assert external_machines(cfg) == {"M3", "M5"}
+    assert external_machines({"sources": {"opcua": [], "mqtt": []}}) == set()

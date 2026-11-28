@@ -186,6 +186,9 @@ rack, I/O cards, 24 V supply, inverters and fans stay inside the cabinet (`keep`
   OPC UA nodes or MQTT topics to machine sensors (with scale / offset) and publishes them as normal telemetry, so the
   AI detector, root-cause graph, Bayesian network and 3D twin run on real plant data unchanged. Tested against a
   simulated PLC (`tests/test_enterprise.py`).
+- **Real data replaces simulated data**: every machine mapped in `sources` is automatically marked external; the line
+  model keeps simulating its flow, faults and workers, but stops publishing its sensors, and the snapshot (3D twin,
+  OPC UA) shows the latest real readings instead (`scripts/run_line.py --external M3,M5` overrides the list).
 
 **Component-level backend** (`roottwin/components.py`, `roottwin/faults/components.yaml`): the backend now knows the
 physical components of M1-M6 (24 components, ids = the CAD part ids of the 3D model, checked by `tests/test_components.py`).

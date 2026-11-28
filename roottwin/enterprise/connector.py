@@ -23,6 +23,17 @@ CONFIG = Path(__file__).resolve().parents[2] / "config" / "enterprise.yaml"
 SENSORS = {"vibration", "temperature", "current", "cadence"}
 
 
+def external_machines(cfg: dict | None = None, path: Path = CONFIG) -> set[str]:
+    """Machines fed by a real source in the config (the simulator must not publish sensors for them)."""
+    if cfg is None:
+        if not path.exists():
+            return set()
+        cfg = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    src = cfg.get("sources") or {}
+    out = {m["machine"] for s in src.get("opcua") or [] for m in s.get("map") or []}
+    return out | {s["machine"] for s in src.get("mqtt") or []}
+
+
 class Readings:
     """Latest mapped values: machine -> sensor -> (value, source)."""
 

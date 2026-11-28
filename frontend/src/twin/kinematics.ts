@@ -7,6 +7,11 @@ export interface ArmDims { base: number; shoulderX: number; shoulderY: number; l
 
 export const ARM: ArmDims = { base: 0.3, shoulderX: 0.2, shoulderY: 0.55, l1: 1.1, l2: 0.9, forearm: 0.3, wrist: 0.48, tool: 0.35 };
 
+/** Real KUKA kinematics (ROS-Industrial kuka_experimental URDF, metres): A2 offset, A2 height above the J1 flange
+ *  (our base is 0.3 m, A2 axis at 0.675 m), upper arm A2->A3, forearm A3->A4 (spherical wrist: A4 = A5), A5 -> flange. */
+export const KR16_2: ArmDims = { base: 0.3, shoulderX: 0.26, shoulderY: 0.375, l1: 0.68, l2: 0.67, forearm: 0, wrist: 0.158, tool: 0.3 };
+export const KR120_R2500: ArmDims = { base: 0.3, shoulderX: 0.35, shoulderY: 0.375, l1: 1.15, l2: 1.0, forearm: 0, wrist: 0.215, tool: 0.35 };
+
 const D = Math.PI / 180;
 
 /** Forward kinematics: tool tip in the robot base frame (metres) for joint angles in degrees (J4 = J6 = 0). */

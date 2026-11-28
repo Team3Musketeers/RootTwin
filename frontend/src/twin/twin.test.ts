@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { explodeProgress } from "./explode";
 import { ARM, armFK, armIK } from "./kinematics";
+import { PAL_BASE, PAL_DIMS, PAL_SCALE, WELD_BASE, WELD_DIMS, WELD_SCALE } from "./machines/cells";
+import { palletSlot } from "./sim";
+import { BELT_Y, ST } from "./layout";
 import { MACHINES, allParts, partById } from "./registry";
 import { applyAction } from "../services/floor";
 import { ioTags } from "./io";
@@ -50,6 +53,21 @@ describe("kinematics", () => {
     const s = 1.25, t: [number, number, number] = [-1.8, 1.4, 1.4];
     const tip = armFK(armIK(t, ARM, s), ARM, s);
     expect(Math.hypot(tip[0] - t[0], tip[1] - t[1], tip[2] - t[2])).toBeLessThan(1e-6);
+  });
+});
+
+describe("real KUKA arms", () => {
+  it("KR 16-2 reaches the whole weld seam and KR 120 every pallet slot (FK(IK(target)) = target)", () => {
+    for (const [r, z] of [["A", -0.3], ["B", 0.3]] as const) for (const x of [-0.5, 0, 0.5]) {
+      const b = WELD_BASE[r], t: [number, number, number] = [x - b[0], BELT_Y + 0.55, z - b[2]];
+      const tip = armFK(armIK(t, WELD_DIMS, WELD_SCALE), WELD_DIMS, WELD_SCALE);
+      tip.forEach((v, i) => expect(v).toBeCloseTo(t[i], 3));
+    }
+    for (let i = 0; i < 9; i++) {
+      const p = palletSlot(i), t: [number, number, number] = [ST.palletizer + p[0] - ST.palletizer - PAL_BASE[0], p[1], p[2] - PAL_BASE[2]];
+      const tip = armFK(armIK(t, PAL_DIMS, PAL_SCALE), PAL_DIMS, PAL_SCALE);
+      tip.forEach((v, k) => expect(v).toBeCloseTo(t[k], 3));
+    }
   });
 });
 

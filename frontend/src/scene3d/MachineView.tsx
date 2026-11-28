@@ -10,7 +10,9 @@ import { geometryFor } from "./cad";
 import { objects, useView } from "./context";
 import { labelVisible } from "./hud";
 import { isEmissivePreset, makeMaterial } from "./materials";
+import { useAssetAvailable } from "./assetLoader";
 import { GlbMachine } from "./GlbMachine";
+import { hostedBy, ROBOT_MODELS, useRobotMeshes } from "./robotMeshes";
 import { glbKey, useGlbParts, useModelUrl } from "./models";
 
 const noRaycast = () => undefined;              // ghosted machines are not clickable
@@ -25,7 +27,7 @@ function tree(parts: Part[]): Node[] {
   return roots;
 }
 
-type Glb = Map<string, THREE.BufferGeometry> | null;
+type Glb = Map<string, THREE.BufferGeometry | null> | null;     // null value = part hidden (contained in a real casting)
 function PartNode({ node, def, maxOrder, explodeRef, glb }: { node: Node; def: MachineDef; maxOrder: number; explodeRef: { current: number }; glb: Glb }) {
   const v = useView();
   const p = node.part;
@@ -34,8 +36,15 @@ function PartNode({ node, def, maxOrder, explodeRef, glb }: { node: Node; def: M
   const leader = useRef<any>(null);
   const label = useRef<HTMLDivElement>(null);
   const ring = useRef<THREE.Mesh>(null);
-  const geometry = useMemo(() => glb?.get(glbKey(p.id)) ?? geometryFor(p.geo), [p.geo, p.id, glb]);   // real CAD mesh when provided
-  const mat = useMemo(() => makeMaterial(p.mat, p.color), [p.mat, p.color]);
+  const real = glb?.get(glbKey(p.id));
+  const hidden = real === null;
+  const geometry = useMemo(() => real ?? geometryFor(p.geo), [p.geo, real]);   // real CAD mesh when provided
+  const vcol = !!geometry.attributes.color;                                     // real castings carry their paint per vertex
+  const mat = useMemo(() => {
+    const m = makeMaterial(p.mat, p.color);
+    if (vcol) { m.vertexColors = true; m.color.set("#ffffff"); (m.userData.base as { color: THREE.Color }).color.set("#ffffff"); }
+    return m;
+  }, [p.mat, p.color, vcol]);
   useEffect(() => () => mat.dispose(), [mat]);
   useEffect(() => { if (group.current) objects.set(p.id, group.current); return () => { objects.delete(p.id); }; }, [p.id]);
   const mine = v.machine === def.id;
@@ -58,9 +67,10 @@ function PartNode({ node, def, maxOrder, explodeRef, glb }: { node: Node; def: M
     const r = m.rot ?? p.rot ?? [0, 0, 0];
     g.rotation.set(r[0], r[1], r[2]);
     // --- material state: fault > selection > X-ray > ghost > base
-    const fault = v.sim.partFault(p.id);
+    const fault = v.sim.partFault(p.id) ?? (glb ? hostedBy.get(p.id)?.map((h) => v.sim.partFault(h)).find(Boolean) : undefined);
     const sel = v.part === p.id, hov = v.hoverPart === p.id;
     let opacity = base.opacity, transparent = base.transparent;
+    if (vcol && mat.vertexColors === !!fault) { mat.vertexColors = !fault; mat.needsUpdate = true; }   // pure crimson on painted castings
     if (fault) {
       const pulse = 0.55 + 0.45 * Math.sin(clock.elapsedTime * 7);
       mat.color.copy(fault.severity === "critical" ? CRIMSON : AMBER);
@@ -89,7 +99,7 @@ function PartNode({ node, def, maxOrder, explodeRef, glb }: { node: Node; def: M
     }
     // target ring around a faulted part: always faces the camera, drawn through housings, pulses
     if (ring.current) {
-      const r = ring.current, on = !!fault && !isolatedOther;
+      const r = ring.current, on = !!fault && !isolatedOther && !hidden;
       r.visible = on;
       if (on) {
         g.getWorldQuaternion(tmpQ).invert();
@@ -116,7 +126,7 @@ function PartNode({ node, def, maxOrder, explodeRef, glb }: { node: Node; def: M
   return (
     <>
       <group ref={group}>
-        <mesh geometry={geometry} material={mat} position={p.meshPos} rotation={p.meshRot} castShadow={!isEmissivePreset(p.mat) && p.mat !== "glass"} receiveShadow
+        <mesh visible={!hidden} geometry={geometry} material={mat} position={p.meshPos} rotation={p.meshRot} castShadow={!isEmissivePreset(p.mat) && p.mat !== "glass"} receiveShadow
               onClick={onClick} onDoubleClick={(ev) => { ev.stopPropagation(); if (!isolatedOther) v.isolate(def.id); }}
               onPointerOver={(ev) => { ev.stopPropagation(); if (!isolatedOther) { v.hover(p.id); document.body.style.cursor = "pointer"; } }}
               onPointerOut={() => { v.hover(null); document.body.style.cursor = ""; }}
@@ -171,6 +181,10 @@ function Beacon({ def }: { def: MachineDef }) {
   );
 }
 
+function RobotParts({ id, children }: { id: string; children: (glb: Glb) => ReactNode }) {
+  return <>{children(useRobotMeshes(id))}</>;
+}
+
 function GlbParts({ url, children }: { url: string; children: (glb: Glb) => ReactNode }) {
   return <>{children(useGlbParts(url))}</>;
 }
@@ -183,6 +197,7 @@ export function MachineView({ def, children, groupRef }: { def: MachineDef; chil
   const group = useRef<THREE.Group>(null);
   const model = useModelUrl(def.id);
   const parts = (glb: Glb) => roots.map((n) => <PartNode key={n.part.id} node={n} def={def} maxOrder={maxOrder} explodeRef={explodeRef} glb={glb} />);
+  const robots = useAssetAvailable(ROBOT_MODELS[def.id] ? `/models/robots/${ROBOT_MODELS[def.id][0].dir}/base_link.dae` : "/models/robots/none");
   useEffect(() => { if (group.current) objects.set(def.id, group.current); return () => { objects.delete(def.id); }; }, [def.id]);
   useFrame((_, dt) => {
     const target = v.machine === def.id && v.mode === "exploded" ? v.explode : 0;
@@ -191,7 +206,8 @@ export function MachineView({ def, children, groupRef }: { def: MachineDef; chil
   return (
     <group ref={(g) => { (group as { current: THREE.Group | null }).current = g; groupRef?.(g); }}
            position={def.position} rotation={[0, def.rotation ?? 0, 0]}>
-      {!model ? parts(null)
+      {robots ? <Suspense fallback={parts(null)}><RobotParts id={def.id}>{parts}</RobotParts></Suspense>
+        : !model ? parts(null)
         : model.replace ? <Suspense fallback={parts(null)}><GlbMachine url={model.url} def={def} explodeRef={explodeRef} /></Suspense>
         : <Suspense fallback={parts(null)}><GlbParts url={model.url}>{parts}</GlbParts></Suspense>}
       {def.id !== "CNV" && def.type !== "agv" && <Beacon def={def} />}

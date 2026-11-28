@@ -2,7 +2,7 @@
 // Pure TypeScript, frame-rate independent (fixed sub-steps); the 3D scene only reads it.
 import { armIK } from "./kinematics";
 import { AGV_PATH, AGV_STOPS, BELT_Y, LINE_X0, ST, STOPS } from "./layout";
-import { PAL_BASE, PAL_PALLET, PAL_PICK, PAL_SCALE, WELD_BASE } from "./machines/cells";
+import { PAL_BASE, PAL_DIMS, PAL_PALLET, PAL_PICK, PAL_SCALE, WELD_BASE, WELD_DIMS, WELD_SCALE } from "./machines/cells";
 import { SEGMENTS } from "./machines/line";
 import { AGV_IDS, MACHINE, MACHINES, allParts, partById } from "./registry";
 import type { Fault, LineState, MachineRuntime, TwinEvent, V3 } from "./types";
@@ -50,10 +50,10 @@ type Pose = Record<string, number>;
 const weldPose = (robot: "A" | "B", x: number, lift = 0): Pose => {
   const b = WELD_BASE[robot];
   const z = robot === "A" ? -0.3 : 0.3;                      // seam on the near side of the part
-  const ik = armIK([x - b[0], BELT_Y + 0.55 + lift, z - b[2]]);
+  const ik = armIK([x - b[0], BELT_Y + 0.55 + lift, z - b[2]], WELD_DIMS, WELD_SCALE);
   return Object.fromEntries(Object.entries(ik).map(([k, v]) => [`${robot}_${k}`, v]));
 };
-const palPose = (p: V3, lift = 0): Pose => armIK([p[0] - PAL_BASE[0], p[1] + lift, p[2] - PAL_BASE[2]], undefined, PAL_SCALE);
+const palPose = (p: V3, lift = 0): Pose => armIK([p[0] - PAL_BASE[0], p[1] + lift, p[2] - PAL_BASE[2]], PAL_DIMS, PAL_SCALE);
 
 // which component an overloaded setpoint damages (first matching fault code of that machine)
 const OVERLOAD: Record<string, RegExp> = {

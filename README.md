@@ -150,6 +150,13 @@ as one synchronised line:
 - **🎬 Showcase** tours every station (isolate → exploded 75 % → X-ray → forced red fault → clear); **Inspect
   station…** runs the same sequence on one machine.
 
+**Real robot arms (28/11)**: the two welding robots are **KUKA KR 16-2** and the palletizer a **KUKA KR 120 R2500 pro**,
+using the real link meshes of [ros-industrial/kuka_experimental](https://github.com/ros-industrial/kuka_experimental)
+(Apache-2.0, `frontend/public/models/robots/NOTICE.md`). The arms use the real KUKA joint dimensions (`twin/kinematics.ts`),
+so the IK, joint sliders, exploded view, X-ray and red faults still work; the castings contain the motors, so a J2/J3
+servo or reducer fault lights up the link that holds it. A test checks that every weld-seam point and pallet slot is
+reachable. Without the files the procedural arms are used.
+
 **Component-level backend** (`roottwin/components.py`, `roottwin/faults/components.yaml`): the backend now knows the
 physical components of M1-M6 (24 components, ids = the CAD part ids of the 3D model, checked by `tests/test_components.py`).
 Each fault code is located on one component; the live snapshot carries `components` (per-part health %, local channels

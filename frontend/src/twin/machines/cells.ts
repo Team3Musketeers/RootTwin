@@ -1,4 +1,5 @@
 // Robotic cells: dual-robot welding cell and heavy palletizing robot (CAD-level parts).
+import { KR120_R2500, KR16_2 } from "../kinematics";
 import { at, comp, cy, fmt, hinges, hose, lathe, louvres, motorS, partFactory, pneuCyl, rb, robotArm, X, Z } from "../build";
 import { BELT_Y, ST } from "../layout";
 import type { Control, MachineDef } from "../types";
@@ -21,6 +22,8 @@ const cabinet = (w: number, h: number, d: number) => comp(
 // ------------------------------------------------------------------ 6. dual-robot welding cell
 const w = partFactory("WLD");
 export const WELD_BASE = { A: [0, 0, -1.9] as [number, number, number], B: [0, 0, 1.9] as [number, number, number] };
+/** Welding robots: KUKA KR 16-2 kinematics, scaled to reach the seam from the cell's robot pedestals. */
+export const WELD_DIMS = KR16_2, WELD_SCALE = 1.45;
 export const welding: MachineDef = {
   id: "WLD", type: "welding", name: "Dual-robot welding cell", zone: "assembly", backendId: "M4", position: [ST.welding, 0, 0], size: [5.6, 3.2, 6],
   description: "Two synchronised 6-axis robots MIG-weld the seams of the part held in a pneumatic fixture; fumes are extracted by the hood.",
@@ -66,14 +69,16 @@ export const welding: MachineDef = {
       w({ id: "WLD.cables", name: "Weld cables & hose package", category: "electrical", mat: "rubber", pos: [0, 0, 0], explodeVector: [-0.4, 0.4, 0], explodeOrder: 0,
         geo: comp(at(hose([[-2.2, 0.98, -2.4], [-1.6, 0.15, -2.2], [-0.5, 0.05, -2.0], [-0.35, 0.2, -1.9]], 0.03)), at(hose([[-2.2, 0.98, 2.4], [-1.6, 0.15, 2.2], [-0.5, 0.05, 2.0], [-0.35, 0.2, 1.9]], 0.03))) }),
     ] },
-    { id: "WLD.A", name: "Robot A", parts: robotArm(w, { id: "WLD.A", k: "A_", pos: WELD_BASE.A, paint: "robotOrange", tool: "torch" }) },
-    { id: "WLD.B", name: "Robot B", parts: robotArm(w, { id: "WLD.B", k: "B_", pos: WELD_BASE.B, paint: "robotOrange", tool: "torch" }) },
+    { id: "WLD.A", name: "Robot A", parts: robotArm(w, { id: "WLD.A", k: "A_", pos: WELD_BASE.A, paint: "robotOrange", tool: "torch", dims: WELD_DIMS, scale: WELD_SCALE }) },
+    { id: "WLD.B", name: "Robot B", parts: robotArm(w, { id: "WLD.B", k: "B_", pos: WELD_BASE.B, paint: "robotOrange", tool: "torch", dims: WELD_DIMS, scale: WELD_SCALE }) },
   ],
 };
 
 // ------------------------------------------------------------------ 7. palletizing robot & outfeed
 const p = partFactory("PAL");
 export const PAL_SCALE = 1.25;
+/** Palletizer: KUKA KR 120 R2500 pro kinematics. */
+export const PAL_DIMS = KR120_R2500;
 export const PAL_BASE: [number, number, number] = [-0.6, 0, -1.4];
 export const PAL_PICK: [number, number, number] = [ST.lineEnd - ST.palletizer, BELT_Y + 0.5, 0];          // machine-local
 export const PAL_PALLET: [number, number, number] = [1.2, 0.15, -2.6];
@@ -108,6 +113,6 @@ export const palletizer: MachineDef = {
       p({ id: "PAL.pendant", name: "Teach pendant", category: "electrical", mat: "plasticBlack", parent: "PAL.ctrl", pos: [0.36, 0.2, 0.1], rot: [0, Math.PI / 2, 0], explodeVector: [0.4, 0, 0], explodeOrder: 0,
         geo: comp(at(rb(0.25, 0.32, 0.05, 0.03)), at(rb(0.18, 0.13, 0.01, 0.005), [0, 0.05, 0.03]), at(cy(0.02, 0.02), [0.08, -0.1, 0.035], Z)) }),
     ] },
-    { id: "PAL.R", name: "Palletizing robot", parts: robotArm(p, { id: "PAL.R", k: "", pos: PAL_BASE, paint: "robotYellow", tool: "gripper", scale: PAL_SCALE }) },
+    { id: "PAL.R", name: "Palletizing robot", parts: robotArm(p, { id: "PAL.R", k: "", pos: PAL_BASE, paint: "robotYellow", tool: "gripper", scale: PAL_SCALE, dims: PAL_DIMS }) },
   ],
 };

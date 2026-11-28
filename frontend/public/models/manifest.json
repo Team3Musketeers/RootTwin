@@ -1,1 +1,25 @@
-{}
+{
+  "CNC": {
+    "url": "/models/sketchfab/cnc/cnc.glb",
+    "replace": true,
+    "keep": [
+      "CNC.spbrg",
+      "CNC.spmotor",
+      "CNC.cutter"
+    ],
+    "rotY": 0
+  },
+  "PRS": {
+    "url": "/models/sketchfab/press/press.glb",
+    "replace": true,
+    "keep": [
+      "PRS.gearbox"
+    ],
+    "rotY": 0,
+    "keepOffset": [
+      0,
+      -1.22,
+      0
+    ]
+  }
+}

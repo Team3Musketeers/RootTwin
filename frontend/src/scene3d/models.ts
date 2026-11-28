@@ -1,7 +1,8 @@
 // Optional real CAD meshes, listed in public/models/manifest.json:
 //   "PRS": "/models/press.glb"                          part override: every mesh named after a part id (e.g. "PRS.brgIn")
 //                                                       replaces that part's procedural geometry (keeps everything else)
-//   "CNC": { "url": "/models/cnc.glb", "replace": true } whole machine: the model replaces the procedural one, is fitted
+//   "CNC": { "url": "/models/cnc.glb", "replace": true, "keep": ["CNC.spbrg"], "rotY": 1.57 } whole machine (keep = procedural
+//                                                       parts / sub-assemblies still shown inside, e.g. the fault-carrying internals): the model replaces the procedural one, is fitted
 //                                                       to the machine footprint, and each of its meshes still explodes,
 //                                                       turns to glass in X-ray and goes red when named after a faulted part
 // Export from Blender: Y up, metres; name meshes after part ids where you want part-level faults.
@@ -10,16 +11,19 @@ import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-type Entry = string | { url: string; replace?: boolean };
+type V3 = [number, number, number];
+type Entry = string | { url: string; replace?: boolean; keep?: string[]; rotY?: number; keepOffset?: V3 };
+export interface ModelSpec { url: string; replace: boolean; keep: string[]; rotY: number; keepOffset: V3 }
 let manifest: Promise<Record<string, Entry>> | null = null;   // fetched once
 const loadManifest = () => (manifest ??= fetch("/models/manifest.json").then((r) => (r.ok ? r.json() : {})).catch(() => ({})) as Promise<Record<string, Entry>>);
 
 /** Model for a machine: { url, replace } or null (procedural CAD). */
 export function useModelUrl(machineId: string) {
-  const [m, setM] = useState<{ url: string; replace: boolean } | null>(null);
+  const [m, setM] = useState<ModelSpec | null>(null);
   useEffect(() => { loadManifest().then((all) => {
     const e = all[machineId];
-    setM(!e ? null : typeof e === "string" ? { url: e, replace: false } : { url: e.url, replace: !!e.replace });
+    setM(!e ? null : typeof e === "string" ? { url: e, replace: false, keep: [], rotY: 0, keepOffset: [0, 0, 0] }
+      : { url: e.url, replace: !!e.replace, keep: e.keep ?? [], rotY: e.rotY ?? 0, keepOffset: e.keepOffset ?? [0, 0, 0] });
   }); }, [machineId]);
   return m;
 }

@@ -13,11 +13,13 @@ import { glbKey } from "./models";
 
 const RED = new THREE.Color("#ff0a1e"), XRAY = new THREE.Color("#7dd3fc");
 
-export function GlbMachine({ url, def, explodeRef }: { url: string; def: MachineDef; explodeRef: { current: number } }) {
+export function GlbMachine({ url, def, explodeRef, rotY = 0 }: { url: string; def: MachineDef; explodeRef: { current: number }; rotY?: number }) {
   const v = useView();
   const { scene } = useGLTF(url, false, true);
   const { root, pieces } = useMemo(() => {
-    const root = scene.clone(true);
+    const root = new THREE.Group().add(scene.clone(true));
+    root.children[0].rotation.y = rotY;                          // face the model's front towards +z like the twin's machines
+    root.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(root), size = box.getSize(new THREE.Vector3());
     const s = Math.min(def.size[0] / size.x, def.size[1] / size.y, def.size[2] / size.z);   // fit inside the footprint
     root.scale.setScalar(s);
@@ -44,7 +46,7 @@ export function GlbMachine({ url, def, explodeRef }: { url: string; def: Machine
     const maxOrder = Math.max(1, ...pieces.map((p) => p.order));
     for (const p of pieces) p.order = Math.round((1 - p.order / maxOrder) * 6);              // inner pieces leave last
     return { root, pieces };
-  }, [scene, def]);
+  }, [scene, def, rotY]);
 
   useFrame(({ clock }) => {
     const mine = v.machine === def.id, other = v.mode !== "factory" && v.machine !== null && !mine;

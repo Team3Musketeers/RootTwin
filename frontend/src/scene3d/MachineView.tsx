@@ -182,6 +182,13 @@ function Beacon({ def }: { def: MachineDef }) {
   );
 }
 
+/** Hide every procedural part except the kept ones (part ids or sub-assembly ids); groups stay for the transforms. */
+function keepOnly(def: MachineDef, keep: string[]): Glb {
+  const out = new Map<string, THREE.BufferGeometry | null>();
+  for (const s of def.subAssemblies) for (const p of s.parts) if (!keep.includes(p.id) && !keep.includes(s.id)) out.set(glbKey(p.id), null);
+  return out;
+}
+
 function AmrParts({ children }: { children: (glb: Glb) => ReactNode }) {
   return <>{children(useAmrMeshes())}</>;
 }
@@ -215,7 +222,10 @@ export function MachineView({ def, children, groupRef }: { def: MachineDef; chil
       {robots ? <Suspense fallback={parts(null)}><RobotParts id={def.id}>{parts}</RobotParts></Suspense>
         : amr ? <Suspense fallback={parts(null)}><AmrParts>{parts}</AmrParts></Suspense>
         : !model ? parts(null)
-        : model.replace ? <Suspense fallback={parts(null)}><GlbMachine url={model.url} def={def} explodeRef={explodeRef} /></Suspense>
+        : model.replace ? <>
+            <Suspense fallback={null}><GlbMachine url={model.url} def={def} explodeRef={explodeRef} rotY={model.rotY} /></Suspense>
+            <group position={model.keepOffset}>{parts(keepOnly(def, model.keep))}</group>
+          </>
         : <Suspense fallback={parts(null)}><GlbParts url={model.url}>{parts}</GlbParts></Suspense>}
       {def.id !== "CNV" && def.type !== "agv" && <Beacon def={def} />}
       {children}

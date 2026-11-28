@@ -165,6 +165,13 @@ model with separate parts exists, so the conveyors are rebuilt in code like a re
 **live-roller** sections, yellow UHMW-faced guide rails on brackets, photo-eye + reflector pairs, a local control
 station with stack light per section, and cable ducts.
 
+**Real CNC and press (28/11)**: the machining centre is "CNC Machine" by Khushbushah and the press "Press Machine
+System" by oreshker, both CC BY 4.0 from Sketchfab (`frontend/public/models/sketchfab/NOTICE.md`), declared in
+`public/models/manifest.json` with `replace: true`. The CNC model has 181 separate meshes, so it explodes piece by piece;
+the press is one AI-generated mesh (fades and X-rays only). The twin's diagnosable internals stay inside them via
+`keep` (CNC spindle bearing, spindle motor, cutter; the press drive gearbox, mounted on the crown with `keepOffset`),
+so Locate still explodes and turns the exact faulty bearing red.
+
 **Component-level backend** (`roottwin/components.py`, `roottwin/faults/components.yaml`): the backend now knows the
 physical components of M1-M6 (24 components, ids = the CAD part ids of the 3D model, checked by `tests/test_components.py`).
 Each fault code is located on one component; the live snapshot carries `components` (per-part health %, local channels

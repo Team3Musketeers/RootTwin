@@ -11,6 +11,7 @@ import type { MatName, Shape } from "../twin/types";
 import { geometryFor } from "./cad";
 import { objects, useView } from "./context";
 import { makeMaterial } from "./materials";
+import { footprintTexture } from "./Hall";
 import { MachineView } from "./MachineView";
 
 const tmp = new THREE.Object3D(), v3 = new THREE.Vector3();
@@ -80,6 +81,8 @@ function Pallet() {
   );
 }
 
+const agvShadow = new THREE.MeshBasicMaterial({ map: footprintTexture(), transparent: true, depthWrite: false, opacity: 0.6 });
+
 function Agv({ id, index }: { id: string; index: number }) {
   const v = useView();
   const group = useRef<THREE.Group | null>(null);
@@ -94,6 +97,7 @@ function Agv({ id, index }: { id: string; index: number }) {
   });
   return (
     <MachineView def={MACHINE[id]} groupRef={(g) => { group.current = g; }}>
+      <mesh rotation-x={-Math.PI / 2} position={[0, 0.007, 0]} scale={[2.2, 1.7, 1]} material={agvShadow}><planeGeometry /></mesh>
       <group ref={raw} position={[0, 0.5, 0]}>
         <Load shape={euroPallet} mat="wood" />
         <Load shape={RAW_LOAD} mat="castIron" />

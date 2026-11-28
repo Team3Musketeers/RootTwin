@@ -1,10 +1,12 @@
-// Factory hall: dark epoxy floor (wear texture, yellow markings, hazard zones), open-top steel columns, light fixtures, cable trays,
+// Factory hall: concrete floor (wear texture, yellow markings, hazard zones), open-top H-beam columns with floodlights,
 // walls, high-bay racks, safety fences, catwalk. Repetitive elements are instanced (drei <Instances> = InstancedMesh).
 import { useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
 import { Instance, Instances, Line, MeshReflectorMaterial } from "@react-three/drei";
 import { AGV_PATH, HALL, RACK } from "../twin/layout";
 import { euroPallet } from "../twin/machines/line";
+import { MACHINES } from "../twin/registry";
+import type { Shape } from "../twin/types";
 import { geometryFor } from "./cad";
 import { makeMaterial, realTexture } from "./materials";
 
@@ -68,9 +70,9 @@ function Floor({ quality }: { quality: boolean }) {
       <mesh rotation-x={-Math.PI / 2} position={[CX, 0, CZ]} receiveShadow>
         <planeGeometry args={[W, D]} />
         {quality
-          ? <MeshReflectorMaterial resolution={512} mixBlur={1} mixStrength={2.2} blur={[300, 80]} roughness={0.75} depthScale={0.4}
-                                   minDepthThreshold={0.4} maxDepthThreshold={1.2} {...(concrete ?? { map: epoxy })} color={concrete ? "#6b7280" : "#aab2bd"} metalness={0.2} mirror={0.3} normalScale={[0.6, 0.6] as unknown as THREE.Vector2} key={concrete ? "c" : "e"} />
-          : <meshStandardMaterial {...(concrete ?? { map: epoxy })} color={concrete ? "#6b7280" : "#aab2bd"} roughness={0.55} metalness={0.1} key={concrete ? "c" : "e"} />}
+          ? <MeshReflectorMaterial resolution={1024} mixBlur={1.2} mixStrength={1.1} blur={[400, 120]} roughness={0.68} depthScale={0.5}
+                                   minDepthThreshold={0.3} maxDepthThreshold={1.3} {...(concrete ?? { map: epoxy })} color={concrete ? "#a8adb3" : "#b9c0c8"} metalness={0.05} mirror={0.22} key={concrete ? "c" : "e"} />
+          : <meshStandardMaterial {...(concrete ?? { map: epoxy })} color={concrete ? "#a8adb3" : "#b9c0c8"} roughness={0.6} metalness={0.05} key={concrete ? "c" : "e"} />}
       </mesh>
       {/* walkway lines and AGV guide path */}
       {[-4.2, 4.2].map((z) => (
@@ -85,6 +87,18 @@ function Floor({ quality }: { quality: boolean }) {
   );
 }
 
+// column: H section 0.4 x 0.4 m extruded to the hall height; base plate; bracket and LED floodlight
+const colGeo = {
+  h: geometryFor({ kind: "extrude", outline: [[-0.2, -0.2], [0.2, -0.2], [0.2, -0.17], [0.02, -0.17], [0.02, 0.17], [0.2, 0.17], [0.2, 0.2], [-0.2, 0.2], [-0.2, 0.17], [-0.02, 0.17], [-0.02, -0.17], [-0.2, -0.17]], depth: HALL.height, bevel: 0.004 }).clone().rotateX(-Math.PI / 2).translate(0, HALL.height / 2, 0),   // extrusions are centred
+  plate: geometryFor({ kind: "compound", items: [{ shape: { kind: "rbox", size: [0.7, 0.04, 0.7], r: 0.01 } }, ...[-0.27, 0.27].flatMap((x) => [-0.27, 0.27].map((z) => ({ shape: { kind: "cyl", r: 0.02, h: 0.06, seg: 8 } as Shape, pos: [x, 0.03, z] as [number, number, number] })))] }),
+  bracket: geometryFor({ kind: "rbox", size: [0.08, 0.08, 0.9], r: 0.01 }),
+  lamp: geometryFor({ kind: "compound", items: [{ shape: { kind: "rbox", size: [0.6, 0.08, 0.4], r: 0.02 } }, ...Array.from({ length: 6 }, (_, i) => ({ shape: { kind: "rbox", size: [0.012, 0.05, 0.36], r: 0.003 } as Shape, pos: [-0.25 + i * 0.1, 0.06, 0] as [number, number, number] }))] }),
+};
+const colMat = {
+  steel: makeMaterial("paintBlue", "#3b4a66"), plate: makeMaterial("castIron"),
+  lamp: new THREE.MeshStandardMaterial({ color: "#f8fafc", emissive: "#fff3dc", emissiveIntensity: 2.4, toneMapped: false, roughness: 0.3 }),
+};
+
 function Structure() {
   const iron = useScanned("corrugated_iron", 6);                   // cladding on the back and left walls
   const cols = useMemo(() => {
@@ -92,36 +106,22 @@ function Structure() {
     for (let x = HALL.x0; x <= HALL.x1 + 0.1; x += 10) for (const z of [HALL.z0 + 0.3, HALL.z1 - 0.3]) out.push([x, HALL.height / 2, z]);
     return out;
   }, []);
-  const lights = useMemo(() => {
-    const out: [number, number, number][] = [];
-    for (let x = HALL.x0 + 5; x < HALL.x1; x += 10) for (let z = HALL.z0 + 5; z < HALL.z1; z += 7) out.push([x, HALL.height - 1.6, z]);
-    return out;
-  }, []);
   return (
     <group>
-      <Instances limit={64} castShadow>
-        <boxGeometry args={[0.45, HALL.height, 0.45]} />
-        <meshStandardMaterial color="#1e3a8a" metalness={0.6} roughness={0.4} />
-        {cols.map((p, i) => <Instance key={i} position={p} />)}
+      {/* HEA 400 steel columns (H section) on base plates */}
+      <Instances limit={64} castShadow receiveShadow geometry={colGeo.h} material={colMat.steel}>
+        {cols.map(([x, , z], i) => <Instance key={i} position={[x, 0, z]} />)}
       </Instances>
-      {/* open-top hall: no roof trusses / purlins, so orbit and top-down cameras are never obstructed */}
-      {/* LED high-bay fixtures */}
-      <Instances limit={64}>
-        <boxGeometry args={[1.4, 0.1, 0.35]} />
-        <meshStandardMaterial color="#f8fafc" emissive="#fff7e6" emissiveIntensity={2.2} toneMapped={false} />
-        {lights.map((p, i) => <Instance key={i} position={p} />)}
+      <Instances limit={64} receiveShadow geometry={colGeo.plate} material={colMat.plate}>
+        {cols.map(([x, , z], i) => <Instance key={i} position={[x, 0.02, z]} />)}
       </Instances>
-      {/* cable trays along the line */}
-      {[-4.6, 4.6].map((z) => (
-        <group key={z}>
-          <mesh position={[-4, 6.2, z]}><boxGeometry args={[62, 0.1, 0.5]} /><meshStandardMaterial color="#94a3b8" metalness={0.8} roughness={0.3} /></mesh>
-          <Instances limit={32}>
-            <boxGeometry args={[0.05, HALL.height - 6.3, 0.05]} />
-            <meshStandardMaterial color="#64748b" />
-            {Array.from({ length: 16 }, (_, i) => <Instance key={i} position={[-34 + i * 4, 6.2 + (HALL.height - 6.3) / 2, z]} />)}
-          </Instances>
-        </group>
-      ))}
+      {/* LED floodlights on column brackets, aimed at the line (open-top hall: nothing hangs in the air) */}
+      <Instances limit={64} geometry={colGeo.bracket} material={colMat.steel}>
+        {cols.map(([x, , z], i) => <Instance key={i} position={[x, 7.6, z - Math.sign(z) * 0.55]} />)}
+      </Instances>
+      <Instances limit={64} geometry={colGeo.lamp} material={colMat.lamp}>
+        {cols.map(([x, , z], i) => <Instance key={i} position={[x, 7.45, z - Math.sign(z) * 0.95]} rotation={[Math.sign(z) * 0.5, 0, 0]} />)}
+      </Instances>
       {/* walls: back and left only, so the cameras keep an open view */}
       <mesh position={[CX, HALL.height / 2, HALL.z0]} receiveShadow><boxGeometry args={[W, HALL.height, 0.2]} /><meshStandardMaterial {...(iron ?? {})} color="#cbd5e1" roughness={0.8} metalness={iron ? 0.5 : 0} key={iron ? "i" : "p"} /></mesh>
       <mesh position={[CX, HALL.height - 2.4, HALL.z0 + 0.12]}><boxGeometry args={[W - 4, 1.2, 0.05]} /><meshStandardMaterial color="#e0f2fe" emissive="#bae6fd" emissiveIntensity={0.6} /></mesh>
@@ -222,10 +222,32 @@ function Catwalk() {
   );
 }
 
+/** Soft footprint shadow (occlusion + oil darkening) so machines sit on the floor instead of floating. */
+export function footprintTexture() {
+  const c = document.createElement("canvas"); c.width = c.height = 128;
+  const g = c.getContext("2d")!;
+  g.filter = "blur(10px)"; g.fillStyle = "rgba(0,0,0,0.85)"; g.fillRect(22, 22, 84, 84);
+  g.filter = "blur(4px)"; g.fillStyle = "rgba(0,0,0,0.5)"; g.fillRect(30, 30, 68, 68);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+function Grounding() {
+  const mat = useMemo(() => new THREE.MeshBasicMaterial({ map: footprintTexture(), transparent: true, depthWrite: false, opacity: 0.55, polygonOffset: true, polygonOffsetFactor: -4 }), []);
+  return (
+    <group>
+      {MACHINES.filter((m) => m.type !== "agv").map((m) => (
+        <mesh key={m.id} material={mat} rotation-x={-Math.PI / 2} position={[m.position[0], 0.006, m.position[2]]} scale={[m.size[0] * 1.35 + 0.6, m.size[2] * 1.35 + 0.6, 1]} renderOrder={1}>
+          <planeGeometry />
+        </mesh>))}
+    </group>
+  );
+}
+
 export function Hall({ quality, structures }: { quality: boolean; structures: boolean }) {
   return (
     <group>
       <Floor quality={quality} />
+      <Grounding />
       <group visible={structures}>
         <Structure />
         <Racks />

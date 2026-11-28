@@ -10,6 +10,7 @@ import { geometryFor } from "./cad";
 import { objects, useView } from "./context";
 import { labelVisible } from "./hud";
 import { isEmissivePreset, makeMaterial } from "./materials";
+import { GlbMachine } from "./GlbMachine";
 import { glbKey, useGlbParts, useModelUrl } from "./models";
 
 const noRaycast = () => undefined;              // ghosted machines are not clickable
@@ -180,7 +181,7 @@ export function MachineView({ def, children, groupRef }: { def: MachineDef; chil
   const maxOrder = useMemo(() => Math.max(...def.subAssemblies.flatMap((s) => s.parts.map((p) => p.explodeOrder))), [def]);
   const explodeRef = useRef(0);
   const group = useRef<THREE.Group>(null);
-  const url = useModelUrl(def.id);
+  const model = useModelUrl(def.id);
   const parts = (glb: Glb) => roots.map((n) => <PartNode key={n.part.id} node={n} def={def} maxOrder={maxOrder} explodeRef={explodeRef} glb={glb} />);
   useEffect(() => { if (group.current) objects.set(def.id, group.current); return () => { objects.delete(def.id); }; }, [def.id]);
   useFrame((_, dt) => {
@@ -190,9 +191,9 @@ export function MachineView({ def, children, groupRef }: { def: MachineDef; chil
   return (
     <group ref={(g) => { (group as { current: THREE.Group | null }).current = g; groupRef?.(g); }}
            position={def.position} rotation={[0, def.rotation ?? 0, 0]}>
-      {url
-        ? <Suspense fallback={parts(null)}><GlbParts url={url}>{parts}</GlbParts></Suspense>
-        : parts(null)}
+      {!model ? parts(null)
+        : model.replace ? <Suspense fallback={parts(null)}><GlbMachine url={model.url} def={def} explodeRef={explodeRef} /></Suspense>
+        : <Suspense fallback={parts(null)}><GlbParts url={model.url}>{parts}</GlbParts></Suspense>}
       {def.id !== "CNV" && def.type !== "agv" && <Beacon def={def} />}
       {children}
     </group>

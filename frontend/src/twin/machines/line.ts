@@ -128,8 +128,8 @@ export const vision: MachineDef = {
           ...Array.from({ length: 7 }, (_, i) => at(rb(0.1, 0.03, 0.006, 0.002), [0, 0.115, -0.12 + i * 0.04])),   // cooling fins
           at(cy(0.014, 0.04), [0, 0.06, 0.16], X), at(cy(0.009, 0.03), [0, 0.06, 0.19], X)),                                        // M12 connector
         description: "Class 2M laser triangulation sensor, 2 kHz profiles, ±0.02 mm.", telemetry: () => ({ "profile rate": "2 kHz", "laser power": "8 mW" }) }),
-      v({ id: "VIS.plane", name: "Laser line (projected)", category: "sensor", mat: "laser", parent: "VIS.laser", pos: [0, -0.68, 0], explodeVector: [0, -0.2, 0], explodeOrder: 0,
-        geo: { kind: "extrude", outline: [[-0.01, 0.57], [0.01, 0.57], [0.35, -0.57], [-0.35, -0.57]], depth: 0.002, bevel: 0 }, rot: [0, PI / 2, 0] }),
+      v({ id: "VIS.plane", name: "Laser line (projected on the part)", category: "sensor", mat: "laser", parent: "VIS.laser", pos: [0, -0.68, 0], explodeVector: [0, -0.2, 0], explodeOrder: 0,
+        geo: comp(at(rb(0.004, 0.003, 0.7, 0.001), [0, -0.57, 0]), at(cy(0.006, 0.004), [0, -0.57, 0.35]), at(cy(0.006, 0.004), [0, -0.57, -0.35])) }),   // only the line on the part is visible
       v({ id: "VIS.ring", name: "LED ring light", category: "electrical", mat: "ledWhite", pos: [0, 2.0, 0.3], explodeVector: [0, -0.5, 0.3], explodeOrder: 1, geo: { kind: "torus", R: 0.09, r: 0.018 }, rot: Z }),
       v({ id: "VIS.lcE", name: "Safety light curtain (emitter)", category: "sensor", mat: "safetyYellow", pos: [-0.85, BELT_Y + 0.6, -0.75], explodeVector: [-0.6, 0, -0.6], explodeOrder: 1,
         geo: comp(at(rb(0.05, 1.2, 0.05, 0.01)), ...Array.from({ length: 10 }, (_, i) => at(cy(0.006, 0.01), [0, -0.5 + i * 0.11, 0.026], Z))) }),

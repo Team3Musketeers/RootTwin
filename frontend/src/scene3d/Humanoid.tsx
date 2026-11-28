@@ -13,15 +13,16 @@ import { useAssetAvailable } from "./assetLoader";
 /** Tapered limb segment hanging down from its joint (length L, radius r0 at the joint -> r1 at the end). */
 function limb(L: number, r0: number, r1: number, bulge = 0.12) {
   const pts: THREE.Vector2[] = [];
-  for (let i = 0; i <= 12; i++) {
-    const t = i / 12, r = r0 + (r1 - r0) * t + Math.sin(t * Math.PI) * bulge * r0;          // muscle bulge mid-segment
-    pts.push(new THREE.Vector2(Math.max(0.001, i === 0 || i === 12 ? r * 0.6 : r), -t * L));
+  for (let i = 0; i <= 20; i++) {
+    const t = i / 20, r = r0 + (r1 - r0) * t + Math.sin(t * Math.PI) * bulge * r0;          // muscle bulge mid-segment
+    const cap = Math.sin(Math.min(t, 1 - t) / 0.12 * Math.PI / 2);                          // rounded ends blend into the joints
+    pts.push(new THREE.Vector2(Math.max(0.001, r * (t < 0.12 || t > 0.88 ? 0.55 + 0.45 * cap : 1)), -t * L));
   }
-  return new THREE.LatheGeometry(pts, 20);
+  return new THREE.LatheGeometry(pts, 28);
 }
 /** Revolved torso / pelvis profile from [radius, y] pairs, squashed front-to-back. */
 function trunk(profile: [number, number][], depth = 0.62) {
-  const g = new THREE.LatheGeometry(profile.map(([r, y]) => new THREE.Vector2(r, y)), 28);
+  const g = new THREE.LatheGeometry(new THREE.SplineCurve(profile.map(([r, y]) => new THREE.Vector2(r, y))).getPoints(40), 36);   // smooth contour
   g.scale(1, 1, depth);
   return g;
 }
@@ -72,30 +73,43 @@ export function Humanoid({ hat, pose }: { hat: string; pose: { current: Pose } }
   };
   useFrame(({ clock }) => {
     const { walk: ph, speed, work } = pose.current, t = clock.elapsedTime;
-    const amp = Math.min(1, speed / 1.6), run = Math.min(1, Math.max(0, (speed - 1.8) / 1.6));
+    const amp = Math.min(1, speed / 1.6), run = Math.min(1, Math.max(0, (speed - 1.8) / 1.6)), still = 1 - amp;
     const s = Math.sin(ph), c = Math.cos(ph);
     const set = (g: React.RefObject<THREE.Group>, x: number, z = 0) => { if (g.current) { g.current.rotation.x = x; g.current.rotation.z = z; } };
-    // legs: hip swing, knee bends while the leg swings forward, ankle keeps the sole flat
-    const thighL = -s * 0.55 * amp, thighR = s * 0.55 * amp;
-    const kneeL = (0.08 + Math.max(0, c) * (0.9 + run * 0.5)) * amp + (1 - amp) * 0.04, kneeR = (0.08 + Math.max(0, -c) * (0.9 + run * 0.5)) * amp + (1 - amp) * 0.04;
-    set(r.hipL, thighL); set(r.hipR, thighR); set(r.knL, kneeL); set(r.knR, kneeR);
-    set(r.anL, -(thighL + kneeL) * 0.85); set(r.anR, -(thighR + kneeR) * 0.85);
-    // arms: counter-swing with relaxed elbows; work pose = right hand reaching forward to a panel, small press motion
+    // idle: slow weight shift from one leg to the other, the unloaded knee softens
+    const shift = Math.sin(t * 0.45);
+    // legs: hip flexion/extension, knee flexes during swing (and a little at heel strike), heel-to-toe roll at the ankle
+    const thighL = -s * (0.5 + run * 0.2) * amp, thighR = s * (0.5 + run * 0.2) * amp;
+    const kneeL = (0.1 + Math.max(0, Math.sin(ph + 1.3)) * (0.95 + run * 0.5)) * amp + still * (0.05 + Math.max(0, shift) * 0.12);
+    const kneeR = (0.1 + Math.max(0, Math.sin(ph + 1.3 + Math.PI)) * (0.95 + run * 0.5)) * amp + still * (0.05 + Math.max(0, -shift) * 0.12);
+    set(r.hipL, thighL, -0.02); set(r.hipR, thighR, 0.02); set(r.knL, kneeL); set(r.knR, kneeR);
+    set(r.anL, -(thighL + kneeL) * 0.9 + Math.max(0, -s) * 0.35 * amp); set(r.anR, -(thighR + kneeR) * 0.9 + Math.max(0, s) * 0.35 * amp);
+    // arms: counter-swing from the shoulder, elbows lag behind; work pose = right hand reaching to the panel and pressing
     const breathe = Math.sin(t * 1.7);
-    set(r.shL, s * 0.45 * amp + (1 - amp) * breathe * 0.03, 0.07);
-    set(r.elL, -(0.25 + Math.max(0, s) * 0.35) * amp - (1 - amp) * 0.12);
-    const reach = work * (1 - amp);
-    set(r.shR, (-s * 0.45 * amp) * (1 - reach) + reach * (-1.05 + Math.sin(t * 3) * 0.06), -0.07 * (1 - reach) - reach * 0.12);
-    set(r.elR, (-(0.25 + Math.max(0, -s) * 0.35) * amp - (1 - amp) * 0.12) * (1 - reach) + reach * -0.55);
-    // trunk: walking bob and twist, idle breathing, slight lean forward when working
-    if (r.pelvis.current) { r.pelvis.current.position.y = 0.94 + Math.abs(c) * 0.03 * amp + (1 - amp) * breathe * 0.004; r.pelvis.current.rotation.y = s * 0.08 * amp; }
-    if (r.chest.current) { r.chest.current.rotation.y = -s * 0.12 * amp; r.chest.current.rotation.x = 0.05 * amp + reach * 0.12; r.chest.current.scale.setScalar(1 + (1 - amp) * breathe * 0.008); }
-    if (r.head.current) r.head.current.rotation.y = (1 - amp) * Math.sin(t * 0.4) * 0.25 * (1 - reach);
+    const reach = work * still;
+    set(r.shL, (Math.sin(ph) * 0.42 * amp + still * breathe * 0.025) * (1 - reach * 0.3), 0.08 + still * 0.02);
+    set(r.elL, -(0.2 + Math.max(0, Math.sin(ph - 0.5)) * 0.45) * amp - still * (0.14 + reach * 0.2));
+    set(r.shR, (-Math.sin(ph) * 0.42 * amp) * (1 - reach) + reach * (-1.0 + Math.sin(t * 2.6) * 0.07), -0.08 * (1 - reach) - reach * 0.15);
+    set(r.elR, (-(0.2 + Math.max(0, -Math.sin(ph - 0.5)) * 0.45) * amp - still * 0.14) * (1 - reach) + reach * (-0.6 + Math.sin(t * 2.6) * 0.1));
+    // trunk: vertical bob twice per gait cycle, pelvis roll + yaw, chest counter-rotation, head keeps the gaze steady
+    const yawP = s * 0.09 * amp, yawC = -s * 0.13 * amp;
+    if (r.pelvis.current) {
+      r.pelvis.current.position.y = 0.94 + (Math.abs(c) - 0.5) * 0.035 * amp + still * breathe * 0.003;
+      r.pelvis.current.position.x = still * shift * 0.018;
+      r.pelvis.current.rotation.set(0, yawP, s * 0.05 * amp + still * shift * 0.025);
+    }
+    if (r.chest.current) {
+      r.chest.current.rotation.set(0.04 * amp + 0.06 * run + reach * 0.12, yawC, -s * 0.03 * amp - still * shift * 0.02);
+      r.chest.current.scale.set(1 + still * breathe * 0.006, 1, 1 + still * breathe * 0.01);
+    }
+    if (r.head.current) r.head.current.rotation.set(-reach * 0.15, -(yawP + yawC) + still * (1 - reach) * Math.sin(t * 0.37) * 0.3, 0);
   });
   const leg = (side: 1 | -1, hip: React.RefObject<THREE.Group>, knee: React.RefObject<THREE.Group>, ankle: React.RefObject<THREE.Group>) => (
     <group ref={hip} position={[side * 0.09, -0.04, 0]}>
+      <mesh material={m.coverall}><sphereGeometry args={[0.078, 20, 14]} /></mesh>
       <mesh geometry={G.thigh} material={m.coverall} castShadow />
       <group ref={knee} position={[0, -0.44, 0]}>
+        <mesh material={m.coverall}><sphereGeometry args={[0.056, 18, 12]} /></mesh>
         <mesh geometry={G.shin} material={m.coverall} castShadow />
         <group ref={ankle} position={[0, -0.42, 0]}>
           <mesh geometry={G.boot} material={m.boot} position={[0, -0.09, 0.02]} castShadow />
@@ -106,10 +120,10 @@ export function Humanoid({ hat, pose }: { hat: string; pose: { current: Pose } }
   );
   const arm = (side: 1 | -1, sh: React.RefObject<THREE.Group>, el: React.RefObject<THREE.Group>) => (
     <group ref={sh} position={[side * 0.215, 0.37, 0]}>
-      <mesh material={m.coverall}><sphereGeometry args={[0.058, 16, 12]} /></mesh>
+      <mesh material={m.coverall} scale={[1.05, 1.15, 1]} position={[side * 0.01, 0.0, 0]}><sphereGeometry args={[0.062, 20, 14]} /></mesh>
       <mesh geometry={G.upper} material={m.coverall} castShadow />
       <group ref={el} position={[0, -0.29, 0]}>
-        <mesh material={m.coverall}><sphereGeometry args={[0.045, 12, 10]} /></mesh>
+        <mesh material={m.coverall}><sphereGeometry args={[0.044, 16, 12]} /></mesh>
         <mesh geometry={G.fore} material={m.coverall} castShadow />
         <group position={[0, -0.27, 0]}>
           <mesh geometry={G.hand} material={m.glove} position={[0, -0.05, 0.005]} castShadow />
@@ -137,7 +151,10 @@ export function Humanoid({ hat, pose }: { hat: string; pose: { current: Pose } }
         <group ref={r.head} position={[0, 0.6, 0.01]}>
           <mesh geometry={G.head} material={m.skin} castShadow />
           <mesh geometry={G.jaw} material={m.skin} position={[0, -0.04, 0.012]} />
-          <mesh material={m.skin} position={[0, -0.005, 0.108]} rotation={[0.25, 0, 0]}><coneGeometry args={[0.018, 0.045, 10]} /></mesh>
+          <mesh material={m.skin} position={[0, -0.005, 0.106]} rotation={[0.3, 0, 0]} scale={[0.8, 1, 1]}><sphereGeometry args={[0.022, 12, 10]} /></mesh>
+          {[-1, 1].map((sd) => <mesh key={`e${sd}`} material={m.belt} position={[sd * 0.035, 0.025, 0.098]}><sphereGeometry args={[0.009, 10, 8]} /></mesh>)}
+          {[-1, 1].map((sd) => <mesh key={`b${sd}`} material={m.hair} position={[sd * 0.036, 0.05, 0.1]} rotation={[0, 0, sd * -0.12]}><boxGeometry args={[0.035, 0.007, 0.01]} /></mesh>)}
+          <mesh material={m.skin} position={[0, -0.075, 0.07]} scale={[1.1, 0.5, 0.7]}><sphereGeometry args={[0.04, 14, 10]} /></mesh>
           {[-1, 1].map((sd) => <mesh key={sd} material={m.skin} position={[sd * 0.093, 0, 0]} scale={[0.4, 1, 0.75]}><sphereGeometry args={[0.03, 10, 8]} /></mesh>)}
           <mesh material={m.hair} position={[0, 0.02, -0.03]} scale={[0.96, 0.95, 0.98]}><sphereGeometry args={[0.105, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.62]} /></mesh>
           {/* safety glasses */}

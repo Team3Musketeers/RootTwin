@@ -52,14 +52,16 @@ export function TwinCanvas({ view }: { view: ViewState }) {
     <Canvas shadows dpr={[1, view.quality ? 1.75 : 1.25]} camera={{ position: CAMERA_PRESETS.overview.pos, fov: 40, near: 0.1, far: 400 }}
             gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping }} onPointerMissed={() => view.hover(null)}>
       <ViewContext.Provider value={view}>
-        <color attach="background" args={["#0b1220"]} />
-        <fog attach="fog" args={["#0b1220", 70, 160]} />
-        <hemisphereLight args={["#e0f2fe", "#1e293b", 0.5 * view.sim.line.lighting]} />
-        <directionalLight position={[18, 30, 14]} intensity={1.6 * view.sim.line.lighting} castShadow shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004}
+        {/* industrial atmosphere: light haze instead of a black void, warm key + cool fill + bounce from the floor */}
+        <color attach="background" args={["#1a1f27"]} />
+        <fog attach="fog" args={["#1a1f27", 55, 150]} />
+        <hemisphereLight args={["#dfe9f5", "#3b3a36", 0.9 * view.sim.line.lighting]} />
+        <directionalLight position={[-20, 18, -16]} intensity={0.55 * view.sim.line.lighting} color="#c7dcff" />
+        <directionalLight position={[18, 30, 14]} intensity={2.2 * view.sim.line.lighting} color="#fff1dc" castShadow shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004}
                           shadow-camera-left={-50} shadow-camera-right={50} shadow-camera-top={25} shadow-camera-bottom={-25} shadow-camera-far={90} />
         <Suspense fallback={null}>
           {/* CC0 HDRI (Poly Haven "Industrial Pipe and Valve 01"), shipped locally: reflections on metal and floor */}
-          <Environment files="/hdri/industrial_pipe_and_valve_01_1k.hdr" environmentIntensity={0.55 * view.sim.line.lighting}>
+          <Environment files="/hdri/industrial_pipe_and_valve_01_1k.hdr" environmentIntensity={0.8 * view.sim.line.lighting}>
             {/* studio softboxes baked into the env map: crisp highlight streaks on paint, chrome and glass */}
             <Lightformer form="rect" intensity={3} position={[0, 12, 0]} rotation-x={Math.PI / 2} scale={[40, 4, 1]} />
             <Lightformer form="rect" intensity={1.6} position={[-20, 6, 10]} rotation-y={Math.PI / 3} scale={[12, 3, 1]} />
@@ -68,7 +70,7 @@ export function TwinCanvas({ view }: { view: ViewState }) {
           </Environment>
         </Suspense>
         <Hall quality={view.quality} structures={structures} />
-        <ContactShadows position={[-3, 0.005, 0]} scale={[80, 30]} resolution={1024} blur={2.2} opacity={0.65} far={4} frames={1} color="#000814" />
+        <ContactShadows position={[-3, 0.005, 0]} scale={[80, 30]} resolution={2048} blur={1.6} opacity={0.75} far={3} frames={1} color="#0a0c10" />
         {MACHINES.filter((m) => m.type !== "agv").map((m) => (
           <MachineView key={m.id} def={m}>{m.id !== "CNV" && (view.mode === "factory" || view.machine === m.id) && <ControlStation def={m} />}</MachineView>))}
         <Workers />
@@ -78,7 +80,7 @@ export function TwinCanvas({ view }: { view: ViewState }) {
         <CameraControls ref={(c) => { cameraApi.controls = c; }} maxPolarAngle={Math.PI / 2.05} minDistance={1.5} maxDistance={120} smoothTime={0.45} />
         {view.quality && (
           <EffectComposer multisampling={0} enableNormalPass={false}>
-            <N8AO aoRadius={0.6} distanceFalloff={0.6} intensity={2.4} quality="medium" halfRes />
+            <N8AO aoRadius={1.1} distanceFalloff={0.8} intensity={3} quality="medium" halfRes />
             {/* threshold 1: only HDR emissives (LEDs, laser beams, crimson faults, arcs) bloom */}
             <Bloom intensity={0.9} luminanceThreshold={1} luminanceSmoothing={0.15} mipmapBlur />
             <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />

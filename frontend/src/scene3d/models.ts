@@ -1,20 +1,27 @@
-// Optional real CAD meshes: drop a .glb in public/models/ and list it in public/models/manifest.json as
-// { "PRS": "/models/press.glb" }. Every mesh whose node name equals a part id (e.g. "PRS.brgIn") replaces that part's
-// procedural geometry; the part keeps its metadata, exploded view, X-ray, selection and red fault behaviour.
-// Export from Blender with node names = part ids, Y up, metres, origin at the part's mounting point.
+// Optional real CAD meshes, listed in public/models/manifest.json:
+//   "PRS": "/models/press.glb"                          part override: every mesh named after a part id (e.g. "PRS.brgIn")
+//                                                       replaces that part's procedural geometry (keeps everything else)
+//   "CNC": { "url": "/models/cnc.glb", "replace": true } whole machine: the model replaces the procedural one, is fitted
+//                                                       to the machine footprint, and each of its meshes still explodes,
+//                                                       turns to glass in X-ray and goes red when named after a faulted part
+// Export from Blender: Y up, metres; name meshes after part ids where you want part-level faults.
 import { useEffect, useState } from "react";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-let manifest: Promise<Record<string, string>> | null = null;   // fetched once
-const loadManifest = () => (manifest ??= fetch("/models/manifest.json").then((r) => (r.ok ? r.json() : {})).catch(() => ({})) as Promise<Record<string, string>>);
+type Entry = string | { url: string; replace?: boolean };
+let manifest: Promise<Record<string, Entry>> | null = null;   // fetched once
+const loadManifest = () => (manifest ??= fetch("/models/manifest.json").then((r) => (r.ok ? r.json() : {})).catch(() => ({})) as Promise<Record<string, Entry>>);
 
-/** Model url for a machine, or null (procedural CAD). */
+/** Model for a machine: { url, replace } or null (procedural CAD). */
 export function useModelUrl(machineId: string) {
-  const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => { loadManifest().then((m) => setUrl(m[machineId] ?? null)); }, [machineId]);
-  return url;
+  const [m, setM] = useState<{ url: string; replace: boolean } | null>(null);
+  useEffect(() => { loadManifest().then((all) => {
+    const e = all[machineId];
+    setM(!e ? null : typeof e === "string" ? { url: e, replace: false } : { url: e.url, replace: !!e.replace });
+  }); }, [machineId]);
+  return m;
 }
 
 /** GLTFLoader strips . : / [ ] from node names, so "PRS.brgIn" arrives as "PRSbrgIn". */

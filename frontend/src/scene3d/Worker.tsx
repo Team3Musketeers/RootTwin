@@ -7,11 +7,19 @@ import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import { MACHINE, MACHINES } from "../twin/registry";
 import { useView } from "./context";
+import { footprintTexture } from "./Hall";
 import { labelVisible } from "./hud";
 import { WorkerBody, type Pose } from "./Humanoid";
 import { cameraApi } from "./TwinCanvas";
 
 const tmpW = new THREE.Vector3(), NO_KEYS = new Set<string>();
+const blobMat = new THREE.MeshBasicMaterial({ map: footprintTexture(), transparent: true, depthWrite: false, opacity: 0.7 });   // soft contact shadow
+/** Where an operator stands at a machine's control station, and the panel itself. */
+export const panelSpot = (id: string) => {
+  const m = MACHINE[id];
+  return { x: m.position[0] + m.size[0] / 2 + 0.55, z: m.position[2] + m.size[2] / 2 + 0.1 };
+};
+const turnTo = (yaw: number, target: number, k: number) => yaw + Math.atan2(Math.sin(target - yaw), Math.cos(target - yaw)) * k;
 export const HAT: Record<string, string> = { operator: "#facc15", technician: "#2563eb", maintenance: "#f97316", supervisor: "#f8fafc" };
 
 /** Local player state (read by the HUD and the control stations for the reach check). */
@@ -34,8 +42,8 @@ function Status({ name, self }: { name: string; self?: boolean }) {
     const machine = Object.entries(v.sim.owner).find(([, who]) => who === name)?.[0];
     const faulty = machine && v.sim.machineFaults(machine).length > 0;
     const repairing = Object.values(v.sim.repairs).some((r) => r.by === name);
-    ring.current?.color.set(repairing ? "#f59e0b" : faulty ? "#ff1a1a" : machine ? "#22c55e" : "#38bdf8");
-    if (ring.current) ring.current.opacity = faulty ? 0.5 + 0.5 * Math.sin(clock.elapsedTime * 8) : 0.8;
+    ring.current?.color.set(repairing ? "#f59e0b" : faulty ? "#ef4444" : "#10b981");
+    if (ring.current) ring.current.opacity = !machine && !repairing ? 0 : faulty ? 0.25 + 0.25 * Math.sin(clock.elapsedTime * 6) : 0.28;   // state only, no ring when idle
     if (tag.current) {
       tag.current.textContent = `${self ? "You" : name}${repairing ? " · 🔧 repairing" : machine ? ` · operating ${machine}${faulty ? " ⚠" : ""}` : ""}`;
       tag.current.style.borderColor = repairing ? "#f59e0b" : faulty ? "#ff1a1a" : machine ? "#22c55e" : "#38bdf8";
@@ -45,7 +53,8 @@ function Status({ name, self }: { name: string; self?: boolean }) {
   });
   return (
     <>
-      <mesh rotation-x={-Math.PI / 2} position={[0, 0.012, 0]}><ringGeometry args={[0.38, 0.47, 40]} /><meshBasicMaterial ref={ring} transparent toneMapped={false} /></mesh>
+      <mesh rotation-x={-Math.PI / 2} position={[0, 0.012, 0]}><ringGeometry args={[0.42, 0.45, 48]} /><meshBasicMaterial ref={ring} transparent depthWrite={false} /></mesh>
+      <mesh rotation-x={-Math.PI / 2} position={[0, 0.008, 0.02]} scale={[0.75, 0.6, 1]} material={blobMat}><planeGeometry /></mesh>
       <group ref={anchor} position={[0, 2.15, 0]} />
       <Html position={[0, 2.15, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: "none" }}>
         <div ref={tag} className="whitespace-nowrap border-l-2 rounded-[3px] border border-white/10 bg-[#141820]/90 px-1.5 py-0.5 text-[10px] text-[#e6eaf0] shadow-sm backdrop-blur" />
@@ -100,7 +109,9 @@ export function LocalWorker() {
     pose.current.walk += dt * speed * 4.5;                // stride ~1.4 m per gait cycle
     pose.current.speed += (speed - pose.current.speed) * Math.min(1, dt * 8);
     const mine = Object.entries(v.sim.owner).find(([, who]) => who === v.floor.myName)?.[0];
-    const atPanel = mine && Math.hypot(player.x - (MACHINE[mine].position[0] + MACHINE[mine].size[0] / 2 + 0.55), player.z - (MACHINE[mine].position[2] + MACHINE[mine].size[2] / 2 + 0.1)) < 1.3;
+    const panel = mine ? panelSpot(mine) : null;
+    const atPanel = panel && Math.hypot(player.x - panel.x, player.z - panel.z) < 1.3;
+    if (atPanel && !speed) player.yaw = turnTo(player.yaw, Math.atan2(panel.x - player.x, panel.z - player.z), Math.min(1, dt * 4));   // face the panel
     const busy = atPanel || Object.values(v.sim.repairs).some((r) => r.by === v.floor.myName);
     pose.current.work += ((busy ? 1 : 0) - pose.current.work) * Math.min(1, dt * 4);
     g.current.position.set(player.x, 0, player.z);
@@ -131,7 +142,10 @@ function RemoteWorker({ id }: { id: string }) {
     if (!g.current || !cur) return;
     const o = g.current.position, d = Math.hypot(cur.x - o.x, cur.z - o.z);
     o.x += (cur.x - o.x) * Math.min(1, dt * 8); o.z += (cur.z - o.z) * Math.min(1, dt * 8);
-    g.current.rotation.y = cur.yaw;
+    const machine = Object.entries(v.sim.owner).find(([, who]) => who === cur.name)?.[0];
+    const panel = machine ? panelSpot(machine) : null;
+    const facing = panel && Math.hypot(o.x - panel.x, o.z - panel.z) < 1.5 ? Math.atan2(panel.x - o.x, panel.z - o.z) : cur.yaw;
+    g.current.rotation.y = turnTo(g.current.rotation.y, facing, Math.min(1, dt * 6));
     const sp = dt > 0 ? (d * Math.min(1, dt * 8)) / dt : 0;
     pose.current.speed += (sp - pose.current.speed) * Math.min(1, dt * 6);
     pose.current.walk += dt * pose.current.speed * 4.5;

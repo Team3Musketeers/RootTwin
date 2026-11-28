@@ -38,7 +38,31 @@ export const pneuCyl = (r: number, len: number): Shape => comp(
   ...[0, 1, 2, 3].map((i) => at(cy(r * 0.09, len), [Math.cos(i * PI / 2 + PI / 4) * r * 1.1, 0, Math.sin(i * PI / 2 + PI / 4) * r * 1.1])),
 );
 /** Sheet-metal panel: thin filleted plate. */
-export const panel = (w: number, h: number, t = 0.03) => rb(w, h, t, Math.min(0.012, t / 2.2));
+/** Sheet-metal panel: face + folded return flanges + pressed stiffening bead + perimeter fasteners (ISO 7380).
+ *  Works for any orientation: the thinnest of w / h / t is the sheet normal. */
+export function panel(w: number, h: number, t = 0.03): Shape {
+  const dims = [w, h, t], n = dims.indexOf(Math.min(w, h, t)), [ia, ib] = [0, 1, 2].filter((i) => i !== n);
+  const A = dims[ia], B = dims[ib], T = dims[n];
+  const v = (a: number, b: number, c: number): V3 => { const o: V3 = [0, 0, 0]; o[ia] = a; o[ib] = b; o[n] = c; return o; };
+  const box = (a: number, b: number, c: number) => { const sz = v(a, b, c) as V3; return rb(sz[0], sz[1], sz[2], Math.min(0.006, Math.min(a, b, c) / 2.2)); };
+  const lip = Math.min(0.035, Math.min(A, B) * 0.08), f = Math.max(0.006, T * 0.4);
+  const boltRot: V3 = n === 0 ? [0, 0, PI / 2] : n === 2 ? [PI / 2, 0, 0] : [0, 0, 0];
+  const items = [
+    at(rb(...(v(A, B, T) as V3), Math.min(0.012, T / 2.2))),
+    at(box(A, f, lip), v(0, B / 2 - f / 2, -lip / 2)), at(box(A, f, lip), v(0, -B / 2 + f / 2, -lip / 2)),     // folded flanges
+    at(box(f, B, lip), v(A / 2 - f / 2, 0, -lip / 2)), at(box(f, B, lip), v(-A / 2 + f / 2, 0, -lip / 2)),
+  ];
+  if (Math.max(A, B) > 0.9) items.push(A >= B ? at(box(A * 0.8, 0.03, T * 0.6), v(0, 0, T * 0.5)) : at(box(0.03, B * 0.8, T * 0.6), v(0, 0, T * 0.5)));   // bead
+  if (Math.min(A, B) > 0.25) {
+    const per = (len: number) => Math.max(2, Math.round(len / 0.4));
+    for (const [len, other, alongA] of [[A, B, true], [B, A, false]] as const)
+      for (let i = 0; i < per(len); i++) for (const sgn of [-1, 1]) {
+        const p = -len / 2 + 0.05 + (i * (len - 0.1)) / (per(len) - 1), q = sgn * (other / 2 - 0.035);
+        items.push(at({ kind: "cyl", r: 0.008, h: 0.006, seg: 10 }, alongA ? v(p, q, T / 2 + 0.003) : v(q, p, T / 2 + 0.003), boltRot));
+      }
+  }
+  return comp(...items);
+}
 /** Rounded rectangle outline (w x h, corner radius r) for extrusions. */
 export function roundedRectOutline(w: number, h: number, r: number): [number, number][] {
   const out: [number, number][] = [];

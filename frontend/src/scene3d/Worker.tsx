@@ -23,6 +23,31 @@ export function blocked(x: number, z: number) {
   return OBSTACLES.some((o) => x > o.x0 - R && x < o.x1 + R && z > o.z0 - R && z < o.z1 + R);
 }
 
+/** Ground ring + floating tag showing what a worker is doing: blue idle, green operating, pulsing red if their machine is faulted. */
+function Status({ name, self }: { name: string; self?: boolean }) {
+  const v = useView();
+  const ring = useRef<THREE.MeshBasicMaterial>(null), tag = useRef<HTMLDivElement>(null);
+  useFrame(({ clock }) => {
+    const machine = Object.entries(v.sim.owner).find(([, who]) => who === name)?.[0];
+    const faulty = machine && v.sim.machineFaults(machine).length > 0;
+    const repairing = Object.values(v.sim.repairs).some((r) => r.by === name);
+    ring.current?.color.set(repairing ? "#f59e0b" : faulty ? "#ff1a1a" : machine ? "#22c55e" : "#38bdf8");
+    if (ring.current) ring.current.opacity = faulty ? 0.5 + 0.5 * Math.sin(clock.elapsedTime * 8) : 0.8;
+    if (tag.current) {
+      tag.current.textContent = `${self ? "You" : name}${repairing ? " · 🔧 repairing" : machine ? ` · operating ${machine}${faulty ? " ⚠" : ""}` : ""}`;
+      tag.current.style.borderColor = repairing ? "#f59e0b" : faulty ? "#ff1a1a" : machine ? "#22c55e" : "#38bdf8";
+    }
+  });
+  return (
+    <>
+      <mesh rotation-x={-Math.PI / 2} position={[0, 0.012, 0]}><ringGeometry args={[0.38, 0.47, 40]} /><meshBasicMaterial ref={ring} transparent toneMapped={false} /></mesh>
+      <Html position={[0, 2.15, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: "none" }}>
+        <div ref={tag} className="whitespace-nowrap rounded border-l-2 bg-slate-950/85 px-1.5 py-0.5 text-[10px] text-white shadow" />
+      </Html>
+    </>
+  );
+}
+
 function Body({ hat, walk }: { hat: string; walk: { current: number } }) {
   const legL = useRef<THREE.Group>(null), legR = useRef<THREE.Group>(null), armL = useRef<THREE.Group>(null), armR = useRef<THREE.Group>(null);
   const m = useMemo(() => ({
@@ -125,7 +150,7 @@ export function LocalWorker() {
       </mesh>)}
     <group ref={g} visible={v.walk && !v.fp}>
       <Body hat={HAT[v.floor.me?.role ?? "technician"]} walk={walk} />
-      <mesh rotation-x={-Math.PI / 2} position={[0, 0.01, 0]}><ringGeometry args={[0.38, 0.45, 32]} /><meshBasicMaterial color="#38bdf8" transparent opacity={0.7} /></mesh>
+      {v.walk && !v.fp && <Status name={v.floor.myName} self />}
     </group>
     </>
   );
@@ -144,15 +169,10 @@ function RemoteWorker({ id }: { id: string }) {
     g.current.rotation.y = cur.yaw;
     walk.current = d > 0.02 ? walk.current + dt * 7 : walk.current * 0.8;
   });
-  const machine = Object.entries(v.sim.owner).find(([, who]) => who === p.name)?.[0];
   return (
     <group ref={g} position={[p.x, 0, p.z]}>
       <Body hat={HAT[p.role] ?? HAT.operator} walk={walk} />
-      <Html position={[0, 2.15, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: "none" }}>
-        <div className="whitespace-nowrap rounded bg-slate-950/85 px-1.5 py-0.5 text-[10px] text-white shadow">
-          <b>{p.name}</b> <span className="text-slate-400">{p.role}</span>{machine && <span className="text-sky-300"> · {machine}</span>}
-        </div>
-      </Html>
+      <Status name={p.name} />
     </group>
   );
 }

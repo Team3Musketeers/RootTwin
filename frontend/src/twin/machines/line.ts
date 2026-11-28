@@ -4,6 +4,7 @@ import { BELT_Y, LINE_X0, ST } from "../layout";
 import type { Control, MachineDef, MachineRuntime, Shape, V3 } from "../types";
 
 const PI = Math.PI;
+const decal = (w: number, h: number) => rb(w, h, 0.004, 0.0015);   // adhesive label / riveted plate
 const CONVEYOR_CONTROLS: Control[] = [
   { key: "speed", label: "Target speed", unit: "m/s", min: 0, max: 1.2, step: 0.01 },
   { key: "current", label: "Motor current", unit: "A", min: 0, max: 20, step: 0.1 },
@@ -84,6 +85,7 @@ export const dispenser: MachineDef = {
       d({ id: "DSP.box", name: "Local control box (IP65)", category: "electrical", mat: "sheetGrey", pos: [1.15, 1.25, -0.6], explodeVector: [0.7, 0, -0.3], explodeOrder: 2, housing: true,
         geo: comp(at(rb(0.12, 0.6, 0.45, 0.02)), at(rb(0.02, 0.5, 0.36, 0.005), [0.065, 0, 0]), ...[-0.2, 0.2].map((y) => at(cy(0.012, 0.03), [0.075, y, 0.19], Z))),
         description: "Remote I/O, motor starter and safety relay for the dispenser.", material: "Powder-coated steel, IP65" }),
+      d({ id: "DSP.label", name: "Dispenser nameplate", category: "structural", mat: "nameplate", parent: "DSP.box", pos: [0.064, -0.15, 0], rot: [0, PI / 2, 0], explodeVector: [0.2, 0, 0], explodeOrder: 0, geo: decal(0.24, 0.12) }),
       d({ id: "DSP.hmi", name: "Operator touch panel 7\"", category: "electrical", mat: "screen", pos: [1.22, 1.45, -0.6], rot: [0, PI / 2, 0], explodeVector: [0.5, 0.2, 0], explodeOrder: 1, geo: rb(0.2, 0.14, 0.01, 0.005) }),
       d({ id: "DSP.stack", name: "Signal tower", category: "electrical", mat: "ledGreen", pos: [1.15, 3.35, -0.75], explodeVector: [0, 0.4, 0], explodeOrder: 0, geo: stackLight }),
       d({ id: "DSP.bed", name: "Outlet roller bed", category: "mechanical", mat: "steel", pos: [0, BELT_Y - 0.06, 0], explodeVector: [0, -0.3, 0], explodeOrder: 4,
@@ -120,7 +122,9 @@ export const vision: MachineDef = {
         description: "5 MP GigE camera with telecentric lens, inspects surface defects and labels.", maintenanceNotes: "Clean lens with optical wipe weekly; recalibrate with the reference target after any knock.",
         tolerance: "measurement ±0.05 mm", telemetry: (rt) => ({ exposure: "180 µs", fps: "60", "focus score": (rt.phase.drift ?? 0) ? "0.41 (fouled)" : "0.94" }) }),
       v({ id: "VIS.laser", name: "Laser line profile scanner", category: "sensor", mat: "paintRed", pos: [0, 2.3, -0.3], explodeVector: [0, 0.4, -0.6], explodeOrder: 0,
-        geo: comp(at(rb(0.1, 0.2, 0.3, 0.02)), at(rb(0.06, 0.02, 0.22, 0.005), [0, -0.105, 0])),
+        geo: comp(at(rb(0.1, 0.2, 0.3, 0.025)), at(rb(0.06, 0.02, 0.22, 0.005), [0, -0.105, 0]),
+          ...Array.from({ length: 7 }, (_, i) => at(rb(0.1, 0.03, 0.006, 0.002), [0, 0.115, -0.12 + i * 0.04])),   // cooling fins
+          at(cy(0.014, 0.04), [0, 0.06, 0.16], X), at(cy(0.009, 0.03), [0, 0.06, 0.19], X)),                                        // M12 connector
         description: "Class 2M laser triangulation sensor, 2 kHz profiles, ±0.02 mm.", telemetry: () => ({ "profile rate": "2 kHz", "laser power": "8 mW" }) }),
       v({ id: "VIS.plane", name: "Laser line (projected)", category: "sensor", mat: "laser", parent: "VIS.laser", pos: [0, -0.68, 0], explodeVector: [0, -0.2, 0], explodeOrder: 0,
         geo: { kind: "extrude", outline: [[-0.01, 0.57], [0.01, 0.57], [0.35, -0.57], [-0.35, -0.57]], depth: 0.002, bevel: 0 }, rot: [0, PI / 2, 0] }),
@@ -132,9 +136,15 @@ export const vision: MachineDef = {
         geo: comp(at(rb(0.3, 0.42, 0.18, 0.02)), ...Array.from({ length: 8 }, (_, i) => at(rb(0.3, 0.008, 0.03, 0.002), [0, -0.18 + i * 0.05, 0.1]))), telemetry: () => ({ "CPU load": "41 %", inference: "7.8 ms", model: "defect-net v3" }) }),
     ] },
     { id: "VIS.tunnel", name: "Light tunnel & services", parts: [
-      v({ id: "VIS.hood", name: "Light-tight inspection tunnel", category: "structural", mat: "smokedGlass", pos: [0, 2.05, 0], explodeVector: [0, 1.1, 0], explodeOrder: 2, housing: true,
-        geo: comp(at(rb(1.6, 0.03, 1.8, 0.01), [0, 0.55, 0]), ...[-0.9, 0.9].map((z) => at(rb(1.6, 1.1, 0.02, 0.01), [0, 0, z]))), material: "Smoked polycarbonate 4 mm",
-        description: "Blocks ambient light so the camera exposure stays constant; hinged for lens cleaning." }),
+      v({ id: "VIS.hoodFrame", name: "Inspection tunnel frame (T-slot 30 × 30)", category: "structural", mat: "brushedAlu", pos: [0, 2.05, 0], explodeVector: [0, 1.4, 0], explodeOrder: 2,
+        geo: comp(...[-0.8, 0.8].flatMap((x) => [-0.9, 0.9].map((z) => at({ kind: "tslot", len: 1.1, s: 0.03 }, [x, 0, z], [0, 0, PI / 2]))),
+          ...[-0.9, 0.9].flatMap((z) => [-0.55, 0.55].map((y) => at({ kind: "tslot", len: 1.6, s: 0.03 }, [0, y, z]))),
+          ...[-0.8, 0.8].map((x) => at({ kind: "tslot", len: 1.8, s: 0.03 }, [x, 0.55, 0], [0, PI / 2, 0])),
+          ...[-0.8, 0.8].flatMap((x) => [-0.4, 0.4].map((y) => at(cy(0.012, 0.05), [x + Math.sign(x) * 0.02, y, 0.93], X)))),   // hinges
+        description: "Aluminium profile frame carrying the light-tight panels; hinged on the operator side for lens cleaning." }),
+      v({ id: "VIS.hood", name: "Light-tight tunnel panels", category: "structural", mat: "smokedGlass", parent: "VIS.hoodFrame", pos: [0, 0, 0], explodeVector: [0, 0.6, 0], explodeOrder: 1, housing: true,
+        geo: comp(at(panel(1.56, 0.012, 1.76), [0, 0.55, 0]), ...[-0.9, 0.9].map((z) => at(panel(1.56, 1.06, 0.012), [0, 0, z]))), material: "Smoked polycarbonate 4 mm",
+        description: "Blocks ambient light so the camera exposure stays constant." }),
       v({ id: "VIS.air", name: "Air service unit (filter-regulator)", category: "actuator", mat: "brushedAlu", pos: [1.0, 1.2, -1.0], explodeVector: [0.4, 0, -0.5], explodeOrder: 1, tolerance: "6.0 bar ±0.1",
         geo: comp(at(rb(0.14, 0.08, 0.1, 0.01), [0, 0.12, 0]), at(lathe([[0, 0], [0.04, 0], [0.045, 0.08], [0.04, 0.16], [0, 0.16]]), [0, -0.08, 0]), at(cy(0.03, 0.02), [0, 0.18, 0]),
           at(hose([[0.07, 0.12, 0], [0.3, 0.3, 0.2], [-0.15, 0.6, 0.25]], 0.006, true))) }),
@@ -183,6 +193,8 @@ export const cnc: MachineDef = {
         motion: (rt) => ({ pos: [-0.8 + 1.5 * (rt.phase.door ?? 1), 2.06, 1.56 + 0.08 * (rt.phase.door ?? 1)] }), description: "Interlocked sliding door (category 3 safety switch).",
         telemetry: (rt) => ({ position: (rt.phase.door ?? 1) > 0.95 ? "open" : (rt.phase.door ?? 1) < 0.05 ? "closed & locked" : "moving" }) }),
       c({ id: "CNC.glass", name: "Tempered safety glass", category: "structural", mat: "glass", parent: "CNC.door", pos: [0, 0, 0], explodeVector: [0, 0, 0.5], explodeOrder: 0, geo: rb(1.38, 1.5, 0.02, 0.005), material: "Laminated polycarbonate + tempered glass" }),
+      c({ id: "CNC.plate", name: "Machine nameplate (CE)", category: "structural", mat: "nameplate", parent: "CNC.front", pos: [0.35, -0.62, 0.03], explodeVector: [0, 0, 0.2], explodeOrder: 0, geo: decal(0.3, 0.15) }),
+      c({ id: "CNC.warn", name: "Warning label ISO 7010 W001", category: "structural", mat: "warnLabel", parent: "CNC.front", pos: [-0.45, 0.55, 0.03], explodeVector: [0, 0, 0.2], explodeOrder: 0, geo: decal(0.16, 0.16) }),
       c({ id: "CNC.tower", name: "Signal tower", category: "electrical", mat: "ledGreen", pos: [1.4, 3.35, -1.3], explodeVector: [0, 0.6, 0], explodeOrder: 0, geo: stackLight }),
       c({ id: "CNC.hmi", name: "Operator pendant on swivel arm", category: "electrical", mat: "graphite", pos: [1.75, 1.7, 1.55], explodeVector: [0.6, 0, 0.6], explodeOrder: 0,
         geo: comp(at(rb(0.55, 0.65, 0.1, 0.03)), at(hose([[-0.2, 0.32, -0.05], [-0.3, 0.6, -0.3], [-0.35, 1.2, -0.3]], 0.03)), ...Array.from({ length: 12 }, (_, i) => at(cy(0.015, 0.02), [-0.2 + (i % 6) * 0.08, -0.25 + Math.floor(i / 6) * 0.06, 0.055], Z))),
@@ -192,6 +204,7 @@ export const cnc: MachineDef = {
     { id: "CNC.structure", name: "Bed, column & axes", parts: [
       c({ id: "CNC.bed", name: "Cast-iron machine bed", category: "structural", mat: "castIron", pos: [0, 0.31, 0], explodeVector: [0, -0.7, 0], explodeOrder: 8, material: "Meehanite cast iron GA",
         geo: comp(at(rb(3.1, 0.62, 2.9, 0.06)), ...[-1, 0, 1].map((i) => at(rb(0.06, 0.4, 2.7, 0.02), [i * 0.9, 0.2, 0]))), tolerance: "guide-way straightness 5 µm / m" }),
+      c({ id: "CNC.tape", name: "Hazard marking tape (bed front)", category: "structural", mat: "hazard", parent: "CNC.bed", pos: [0, 0.22, 1.452], explodeVector: [0, 0, 0.2], explodeOrder: 0, geo: decal(3.0, 0.08) }),
       c({ id: "CNC.rails", name: "Linear guide rails (X) & ball screw", category: "mechanical", mat: "steel", pos: [0, 0.66, 0], explodeVector: [0, 0.3, 0], explodeOrder: 6,
         geo: comp(...[-0.4, 0.4].map((z) => at(rb(2.6, 0.05, 0.05, 0.005), [0, 0, z])), at(cy(0.022, 2.4), [0, 0, 0], X), ...[-0.4, 0.4].flatMap((z) => [-0.3, 0.3].map((x) => at(rb(0.14, 0.06, 0.09, 0.01), [x, 0.04, z])))),
         tolerance: "preload class P, H accuracy", description: "35 mm profiled rail guides with recirculating ball carriages and a Ø40 C3 ball screw." }),
@@ -282,6 +295,9 @@ export const press: MachineDef = {
         geo: comp(...[-0.5, 0.5].flatMap((x) => [-0.35, 0.35].map((z) => at({ kind: "helix", r: 0.045, pitch: 0.028, turns: 9, wire: 0.009 }, [x, 0, z])))), material: "Spring steel 51CrV4, rectangular wire",
         tolerance: "preload 10 % of free length", description: "Return the upper die and strip the part after each stroke; colour coding by load (ISO 10243).",
         maintenanceNotes: "Replace as a set after 1 million strokes or if the free length drops by more than 2 %.", motion: (rt) => ({ pos: [0, 0.98 - 0.02 * (rt.phase.ram ?? 0), 0] }) }),
+      g({ id: "PRS.tape", name: "Hazard stripes on the ram (crush zone)", category: "structural", mat: "hazard", parent: "PRS.ram", pos: [0, 0, 0.553], explodeVector: [0, 0, 0.2], explodeOrder: 0, geo: decal(1.2, 0.12) }),
+      g({ id: "PRS.plate", name: "Press nameplate (CE)", category: "structural", mat: "nameplate", parent: "PRS.colL", pos: [0, 0.5, 0.28], explodeVector: [0, 0, 0.2], explodeOrder: 0, geo: decal(0.3, 0.15) }),
+      g({ id: "PRS.warn", name: "Crush-hazard warning label", category: "structural", mat: "warnLabel", parent: "PRS.colR", pos: [0, 0.3, 0.28], explodeVector: [0, 0, 0.2], explodeOrder: 0, geo: decal(0.2, 0.2) }),
       g({ id: "PRS.rod", name: "Chrome piston rod", category: "mechanical", mat: "chrome", parent: "PRS.ram", pos: [0, 0.6, 0], explodeVector: [0, 0.4, 0], explodeOrder: 1, geo: cy(0.09, 0.9), tolerance: "Ø90 f7, Ra 0.2" }),
       g({ id: "PRS.psens", name: "Pressure transducer", category: "sensor", mat: "steel", pos: [0.35, 3.62, 0.2], explodeVector: [0.5, 0.3, 0.5], explodeOrder: 0,
         geo: comp(at(cy(0.025, 0.1)), at(cy(0.018, 0.06), [0, 0.08, 0]), at(hose([[0, 0.1, 0], [0.1, 0.25, 0.1], [0.4, 0.3, 0.4]], 0.006))),
@@ -371,7 +387,7 @@ export const conveyors: MachineDef = {
         geo: comp(at(rb(0.08, 0.1, 0.1, 0.01)), at(cy(0.015, 0.08), [0, 0.09, 0]), at(hose([[0, -0.04, -0.05], [0, -0.2, -0.15], [0.3, -0.5, -0.15]], 0.006))),
         description: "Load-cell tension sensor on the take-up pulley.", telemetry: (rt) => ({ tension: fmt(1.8 + (rt.phase[`slip${s.n}`] ?? 0), "kN"), signal: "4-20 mA" }) }),
       k({ id: `CNV.s${s.n}.guard`, name: `Conveyor #${s.n} drive guard`, category: "structural", mat: "safetyYellow", pos: [s.x1 - 0.25, BELT_Y - 0.3, 0.58], explodeVector: [0, 0.3, 1.0], explodeOrder: 2, housing: true,
-        geo: comp(at(rb(0.42, 0.36, 0.02, 0.02), [0, 0, 0.24]), at(rb(0.42, 0.02, 0.5, 0.01), [0, 0.18, 0]), at(rb(0.42, 0.02, 0.5, 0.01), [0, -0.18, 0])), description: "Guard over the motor-reducer coupling (EN ISO 14120)." }),
+        geo: comp(at(panel(0.42, 0.36, 0.015), [0, 0, 0.24]), at(panel(0.42, 0.015, 0.5), [0, 0.18, 0]), at(panel(0.42, 0.015, 0.5), [0, -0.18, 0])), description: "Guard over the motor-reducer coupling (EN ISO 14120)." }),
       k({ id: `CNV.s${s.n}.pe`, name: `Conveyor #${s.n} photo-eye`, category: "sensor", mat: "plasticBlack", pos: [s.x1 - 0.5, BELT_Y + 0.2, -0.47], explodeVector: [0, 0.3, -0.3], explodeOrder: 0,
         geo: comp(at(rb(0.04, 0.06, 0.08, 0.006)), at(cy(0.003, 0.92), [0, 0, 0.46], Z)) }),
     ] };

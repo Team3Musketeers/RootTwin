@@ -42,6 +42,15 @@ export default function App() {
   const floor = floorRef.current;
   const act = useCallback((a: Action) => floor.act(a), [floor]);
   const [who, setWho] = useState({ name: "", role: "technician" });
+  // big transient banner for what matters on the floor: faults, line stops, repairs (checked at the 5 Hz HUD refresh)
+  const seenEvent = useRef<unknown>(null);
+  const [toast, setToast] = useState<{ text: string; level: string; t: number } | null>(null);
+  const top = sim.events[0];
+  if (top && top !== seenEvent.current) {
+    seenEvent.current = top;
+    if (top.level === "fault" || (top.level === "success" && /cleared|reset/.test(top.text))) setTimeout(() => setToast({ text: top.text, level: top.level, t: Date.now() }), 0);
+  }
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 4000); return () => clearTimeout(t); }, [toast]);
   const [quality, setQuality] = useState(true);
   const [tab, setTab] = useState<Tab>("controls");
   const [left, setLeft] = useState(() => window.innerWidth > 1350);      // keep 75-80 % of the screen for the 3D view
@@ -101,6 +110,33 @@ export default function App() {
     else c?.setLookAt(player.x - 3, 3.2, player.z + 5, player.x, 1.2, player.z, true);
   };
   const toggleWalk = () => setCamera(walk ? "orbit" : "follow");
+
+  // Showcase tour: every station isolated, exploded, X-rayed, then a forced fault shown in red, then cleaned up.
+  const tour = useRef(0);
+  const [touring, setTouring] = useState<string | null>(null);
+  const showcase = async (only?: string) => {
+    const run = ++tour.current, live = () => tour.current === run;
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    setCamera("orbit"); setTab("exploded"); setRight(true);
+    for (const m of MACHINES.filter((x) => (only ? x.id === only : x.type !== "agv" || x.id === "AGV1"))) {
+      if (!live()) break;
+      setTouring(m.name);
+      setMachine(m.id); setPart(null); setXray(false); setMode("isolate"); setExplode(0);
+      setTimeout(() => cameraApi.fit(m.id, 1.05), 30); await wait(2200); if (!live()) break;
+      setMode("exploded"); setExplode(0.75); await wait(3000); if (!live()) break;
+      setXray(true); setExplode(0.25); await wait(2500); if (!live()) break;
+      const spec = m.faults.find((f) => f.severity === "critical") ?? m.faults[0];
+      if (spec) {
+        act({ m: "fault", id: m.id, code: spec.code });
+        setPart(spec.partId); setXray(false); setExplode(1);
+        setTimeout(() => cameraApi.fit(spec.partId, 3), 600); await wait(3500);
+        act({ m: "clear", id: m.id, code: spec.code });
+      }
+      setExplode(0);
+    }
+    if (live()) { setTouring(null); setXray(false); changeMode("factory"); setMachine(null); setPart(null); }
+  };
+  const stopTour = () => { tour.current++; setTouring(null); setXray(false); setExplode(0); };
   const resetSim = () => { simRef.current = new TwinSim(); setMachine(null); setPart(null); setMode("factory"); };
   const changeMode = (m: ViewMode) => {
     if (m !== "factory" && !machine) return;
@@ -182,6 +218,12 @@ export default function App() {
                 </select>
                 <button className="rounded bg-sky-600 px-2 py-0.5 hover:bg-sky-500">Join floor</button>
               </form>}
+          <button onClick={() => (touring ? stopTour() : showcase())} title="Visual inspection tour of every station: isolate, exploded view, X-ray, red fault"
+                  className={`rounded border border-white/10 px-2 py-0.5 text-xs ${touring ? "bg-violet-600" : "hover:bg-white/10"}`}>{touring ? `■ Stop tour (${touring.split(" ")[0]})` : "🎬 Showcase"}</button>
+          <select value="" aria-label="Inspect station" onChange={(e) => e.target.value && showcase(e.target.value)} className="rounded border border-white/10 bg-slate-900 px-1.5 py-0.5 text-xs">
+            <option value="">🔍 Inspect station…</option>
+            {MACHINES.filter((m) => m.type !== "agv" || m.id === "AGV1").map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
           <select value={preset} aria-label="Camera preset" onChange={(e) => { const p = e.target.value as CameraPreset; setPreset(p); cameraApi.preset(p); }}
                   className="rounded border border-white/10 bg-slate-900 px-1.5 py-0.5 text-xs">
             {Object.entries(CAMERA_PRESETS).map(([id, c]) => <option key={id} value={id}>📷 {c.label}</option>)}
@@ -221,6 +263,10 @@ export default function App() {
               onPart={(id) => { setPart(id); setTimeout(() => cameraApi.fit(id, 2.5), 30); }} onLocate={locate} onFramePart={framePart}
               onInject={inject} onClear={clear} animateAssembly={animateAssembly} reset={resetSim} />}
           </aside>
+          {toast && (
+            <div key={toast.t} className={`pointer-events-none absolute left-1/2 top-16 -translate-x-1/2 rounded-lg px-4 py-2 text-sm font-semibold shadow-2xl ${toast.level === "fault" ? "bg-red-600/95 animate-pulse" : "bg-emerald-600/95"}`}>
+              {toast.level === "fault" ? "⚠ " : "✓ "}{toast.text}
+            </div>)}
           {walk && (
             <div className="pointer-events-none absolute bottom-10 left-1/2 -translate-x-1/2 rounded bg-slate-950/85 px-3 py-1.5 text-xs text-slate-200">
               {near ? <>At <b>{MACHINE[near].name}</b>{sim.owner[near] ? ` (operated by ${sim.owner[near]})` : " (unclaimed, automatic)"} · <b>E</b> open controls · <b>C</b> {sim.owner[near] === floor.myName ? "release" : "take control"} · click the panel buttons / drag the handwheel</>

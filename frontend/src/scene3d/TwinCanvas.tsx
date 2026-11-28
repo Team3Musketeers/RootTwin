@@ -11,6 +11,7 @@ import { Flow } from "./Flow";
 import { Hall } from "./Hall";
 import { ControlStation } from "./ControlStation";
 import { MachineView } from "./MachineView";
+import { Props } from "./Props";
 import { Workers } from "./Worker";
 
 export type CameraPreset = "overview" | "logistics" | "machining" | "assembly" | "packaging" | "control";
@@ -71,6 +72,7 @@ export function TwinCanvas({ view }: { view: ViewState }) {
         {MACHINES.filter((m) => m.type !== "agv").map((m) => (
           <MachineView key={m.id} def={m}>{m.id !== "CNV" && (view.mode === "factory" || view.machine === m.id) && <ControlStation def={m} />}</MachineView>))}
         <Workers />
+        <Props />
         <Flow />
         <Ticker v={view} />
         <CameraControls ref={(c) => { cameraApi.controls = c; }} maxPolarAngle={Math.PI / 2.05} minDistance={1.5} maxDistance={120} smoothTime={0.45} />

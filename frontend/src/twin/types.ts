@@ -23,7 +23,8 @@ export type Shape =
 export type MatName =
   | "robotOrange" | "robotYellow" | "graphite" | "castIron" | "steel" | "chrome" | "brushedAlu" | "anodized" | "copper" | "brass"
   | "rubber" | "glass" | "smokedGlass" | "sheetWhite" | "sheetGrey" | "paintBlue" | "paintRed" | "paintGreen" | "safetyYellow"
-  | "cabinet" | "plasticBlack" | "wood" | "belt" | "perforated" | "ledGreen" | "ledRed" | "ledBlue" | "ledWhite" | "screen" | "laser" | "oil";
+  | "cabinet" | "plasticBlack" | "wood" | "belt" | "perforated" | "ledGreen" | "ledRed" | "ledBlue" | "ledWhite" | "screen" | "laser" | "oil"
+  | "warnLabel" | "nameplate" | "hazard";       // decals: ISO 7010 warning label, machine nameplate, hazard stripes
 
 /** Pose of a part relative to its parent, computed every frame from the machine runtime. */
 export interface Motion { pos?: V3; rot?: V3 }

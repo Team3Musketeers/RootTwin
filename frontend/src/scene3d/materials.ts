@@ -15,6 +15,7 @@ function canvasTex(size: number, draw: (c: CanvasRenderingContext2D, s: number) 
   if (color) t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
+const halfHeight = (t: THREE.Texture) => { t.repeat.set(1, 0.5); t.offset.set(0, 0.5); return t; };   // 2:1 plate drawn in the top half
 let seed = 7;
 const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 
@@ -39,6 +40,24 @@ const TEX = {
   wood: () => canvasTex(256, (c, s) => {
     c.fillStyle = "#b07a45"; c.fillRect(0, 0, s, s);
     for (let i = 0; i < 70; i++) { c.strokeStyle = `rgba(90,55,25,${0.15 + rnd() * 0.25})`; c.lineWidth = 1 + rnd() * 3; const y = rnd() * s; c.beginPath(); c.moveTo(0, y); c.bezierCurveTo(s / 3, y + 6, (2 * s) / 3, y - 6, s, y + 2); c.stroke(); }
+  }, 1, true),
+  warn: () => canvasTex(256, (c, s) => {           // ISO 7010 W001-style general warning label
+    c.fillStyle = "#f5f5f0"; c.fillRect(0, 0, s, s);
+    c.fillStyle = "#facc15"; c.strokeStyle = "#111"; c.lineWidth = 14; c.lineJoin = "round";
+    c.beginPath(); c.moveTo(s / 2, s * 0.1); c.lineTo(s * 0.92, s * 0.85); c.lineTo(s * 0.08, s * 0.85); c.closePath(); c.fill(); c.stroke();
+    c.fillStyle = "#111"; c.font = `bold ${s * 0.42}px Arial`; c.textAlign = "center"; c.fillText("!", s / 2, s * 0.77);
+  }, 1, true),
+  plate: () => halfHeight(canvasTex(512, (c, s) => {           // stainless nameplate with CE marking
+    c.fillStyle = "#c9ced6"; c.fillRect(0, 0, s, s / 2);
+    for (let i = 0; i < 300; i++) { c.fillStyle = `rgba(255,255,255,${rnd() * 0.08})`; c.fillRect(0, rnd() * s / 2, s, 1); }
+    c.fillStyle = "#0f172a"; c.font = "bold 44px Arial"; c.fillText("ROOTTWIN", 24, 60);
+    c.font = "24px Arial"; ["Type  RT-" + (1000 + Math.floor(rnd() * 8999)), "S/N  " + (240000 + Math.floor(rnd() * 9999)), "400 V 3~ 50 Hz   IP54", "Year 2026"].forEach((t, i) => c.fillText(t, 24, 110 + i * 32));
+    c.font = "bold 64px Arial"; c.fillText("CE", s - 130, 220);
+    c.strokeStyle = "#475569"; c.lineWidth = 6; c.strokeRect(6, 6, s - 12, s / 2 - 12);
+  }, 1, true)),
+  hazard: () => canvasTex(128, (c, s) => {
+    c.fillStyle = "#111"; c.fillRect(0, 0, s, s); c.fillStyle = "#facc15";
+    for (let i = -s; i < 2 * s; i += s / 2) { c.beginPath(); c.moveTo(i, 0); c.lineTo(i + s / 4, 0); c.lineTo(i + s / 4 + s, s); c.lineTo(i + s, s); c.fill(); }
   }, 1, true),
   screen: () => canvasTex(256, (c, s) => {         // HMI screen with trend lines
     c.fillStyle = "#071427"; c.fillRect(0, 0, s, s);
@@ -129,6 +148,9 @@ const PRESETS: Record<MatName, () => P> = {
   screen: () => ({ map: tex("screen"), emissiveMap: tex("screen"), emissive: "#ffffff", emissiveIntensity: 1.2, roughness: 0.2 }),
   laser: () => ({ color: "#ff2020", emissive: "#ff2020", emissiveIntensity: 4, transparent: true, opacity: 0.55, toneMapped: false }),
   oil: () => ({ color: "#d97706", metalness: 0, roughness: 0.1, transparent: true, opacity: 0.7 }),
+  warnLabel: () => ({ map: tex("warn"), roughness: 0.4, clearcoat: 0.5 }),
+  nameplate: () => ({ map: tex("plate"), metalness: 0.85, roughness: 0.3 }),
+  hazard: () => ({ map: tex("hazard"), roughness: 0.5, clearcoat: 0.3 }),
 };
 
 // oil and dust collect near the floor: painted and cast surfaces darken and get glossier in the lowest ~0.5 m (world space)
@@ -146,12 +168,35 @@ function addGrime(m: THREE.MeshPhysicalMaterial) {
 
 export const isEmissivePreset = (m: MatName) => m.startsWith("led") || m === "screen" || m === "laser";
 
+// ------------------------------------------------------------------ real scanned PBR maps (Poly Haven CC0, optional)
+const loader = new THREE.TextureLoader();
+const realCache = new Map<string, Promise<THREE.Texture | null>>();
+/** Load /textures/<set>/<map>.jpg once; resolves null when the asset was not downloaded. */
+export function realTexture(set: string, map: string, repeat = 1, color = false): Promise<THREE.Texture | null> {
+  const url = `/textures/${set}/${map}.jpg`;
+  if (!realCache.has(url)) realCache.set(url, fetch(url, { method: "HEAD" })
+    .then((r) => (r.ok && !r.headers.get("content-type")?.includes("text/html") ? loader.loadAsync(url) : null))
+    .then((t) => { if (t) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; if (color) t.colorSpace = THREE.SRGBColorSpace; } return t; })
+    .catch(() => null));
+  return realCache.get(url)!.then((t) => { if (t && t.repeat.x !== repeat) { t = t.clone(); t.repeat.set(repeat, repeat); t.needsUpdate = true; } return t; });
+}
+// painted sheet metal gets the scanned chipped-paint relief and roughness instead of the procedural one
+const SCANNED: Partial<Record<MatName, [string, number]>> = { sheetGrey: ["blue_metal_plate", 2], cabinet: ["blue_metal_plate", 2], sheetWhite: ["blue_metal_plate", 2], castIron: ["metal_plate", 2] };
+function applyScanned(m: THREE.MeshPhysicalMaterial, set: string, repeat: number) {
+  Promise.all([realTexture(set, "nor_gl", repeat), realTexture(set, "rough", repeat)]).then(([n, r]) => {
+    if (!n || !r) return;
+    m.normalMap = n; m.normalScale.set(0.5, 0.5); m.roughnessMap = r; m.needsUpdate = true;
+  });
+}
+
 /** A fresh material per part (parts change colour individually for faults, selection, ghosting, X-ray). */
 export function makeMaterial(name: MatName, tint?: string) {
   const p = PRESETS[name]();
   const m = new THREE.MeshPhysicalMaterial(p);
   if (tint) m.color.set(tint);
   if (GRIMY.has(name)) addGrime(m);
+  const sc = SCANNED[name];
+  if (sc) applyScanned(m, sc[0], sc[1]);
   m.userData.base = { color: m.color.clone(), emissive: m.emissive.clone(), emissiveIntensity: m.emissiveIntensity, opacity: m.opacity, transparent: m.transparent };
   return m;
 }

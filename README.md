@@ -134,6 +134,22 @@ as one synchronised line:
 - *New PBR material*: add a preset to `PRESETS` in `scene3d/materials.ts` (colour, metalness, roughness, procedural
   normal / roughness maps) and its name to `MatName` in `twin/types.ts`.
 
+**Real assets and visual inspection (28/11, v6)**
+- `python scripts/fetch_polyhaven.py` downloads ~41 MB of **CC0 Poly Haven** assets (not committed): 12 photo-scanned
+  props (tool chest, tool cart, welding cart, storage cart, hand truck, cartons, barrels, crate, power box, metal rack,
+  fire extinguishers, industrial pipes) and 5 scanned PBR sets (hangar concrete floor, corrugated iron walls, painted
+  sheet metal with chipped-paint relief, steel plate). Without them the app falls back to procedural materials.
+- `scene3d/assetLoader.ts`: glTF/glb loader (Meshopt supported) that normalises any model - real-world height,
+  centred, standing on y = 0, shadows on - and skips files that are not there. Machines stay part-by-part CAD (no CC0
+  CNC / robot / conveyor exists with separable parts); `.glb` part overrides are described above.
+- No flat slabs left: every sheet-metal panel is built with folded flanges, a stiffening bead and perimeter fasteners;
+  vision tunnel on an aluminium profile frame with hinges, finned laser head, machine nameplates (CE), ISO 7010 warning
+  labels and hazard tape on crush zones; rack loads are Euro pallets with cartons.
+- Part card: **Force fault / Clear fault** on the exact component. Workers show a ring and tag: blue idle, green
+  operating, pulsing red when their machine is faulted, amber while repairing. Faults, line stops and repairs pop a banner.
+- **🎬 Showcase** tours every station (isolate → exploded 75 % → X-ray → forced red fault → clear); **Inspect
+  station…** runs the same sequence on one machine.
+
 **Component-level backend** (`roottwin/components.py`, `roottwin/faults/components.yaml`): the backend now knows the
 physical components of M1-M6 (24 components, ids = the CAD part ids of the 3D model, checked by `tests/test_components.py`).
 Each fault code is located on one component; the live snapshot carries `components` (per-part health %, local channels

@@ -23,14 +23,16 @@ function defaultTelemetry(p: Part, rt: MachineRuntime, fault?: Fault): Record<st
   }
 }
 
-export function PartCard({ sim, part, onLocate, onRepair }: { sim: TwinSim; part: Part; onLocate: () => void; onRepair?: (f: Fault) => void }) {
+export function PartCard({ sim, part, onLocate, onRepair, onInject, onClear }: { sim: TwinSim; part: Part; onLocate: () => void; onRepair?: (f: Fault) => void;
+  onInject?: (machineId: string, code: string) => void; onClear?: (f: Fault) => void }) {
   const m = Object.values(MACHINE).find((x) => allParts(x).includes(part))!;
   const rt = sim.rt[m.id], fault = sim.partFault(part.id);
   const live = liveComponents.get(part.id);             // backend component telemetry wins when connected
   const tele = live
     ? Object.fromEntries(Object.entries(live.channels).map(([k, c]) => [k.replace(/_/g, " "), `${c.value.toFixed(2)} ${c.unit}`]))
     : { ...defaultTelemetry(part, rt, fault), ...(part.telemetry?.(rt) ?? {}) };
-  const health = live ? live.health : fault ? (fault.severity === "critical" ? 12 : 48) : Math.max(70, 100 - (rt.cycles % 300) / 10);
+  const faultHealth = fault ? (fault.severity === "critical" ? 12 : 48) : 100;          // a red part is never shown healthy
+  const health = Math.min(faultHealth, live ? live.health : fault ? 100 : Math.max(70, 100 - (rt.cycles % 300) / 10));
   const [answer, setAnswer] = useState<{ text: string; sources: string[]; mode: string } | null>(null);
   const ask = () => api("/copilot/ask", { question: `How do I repair the ${part.name}?`, fault_codes: m.faults.find((f) => f.partId === part.id)?.backendCodes?.slice(0, 1) ?? [],
     alert_text: fault?.label }).then(setAnswer).catch((e) => setAnswer({ text: `Copilot unavailable (${e.message}) - the backend API is not running.`, sources: [], mode: "blocked" }));
@@ -52,6 +54,14 @@ export function PartCard({ sim, part, onLocate, onRepair }: { sim: TwinSim; part
       </div>
       {fault && <div className="mt-2 flex items-center gap-2 rounded bg-red-600/25 px-2 py-1 text-red-200"><span className="flex-1">⚠ {fault.id} · {fault.label} ({fault.severity})</span>
         {onRepair && <Btn c="amber" onClick={() => onRepair(fault)} disabled={!!sim.repairs[fault.id]}>{sim.repairs[fault.id] ? `🔧 ${sim.repairs[fault.id].left.toFixed(1)} s` : "🔧 Repair"}</Btn>}</div>}
+      {(() => {                                       // fault training on this exact component
+        const spec = m.faults.find((f) => f.partId === part.id);
+        if (!spec || !onInject || !onClear) return null;
+        return <div className="mt-2 flex gap-1.5">
+          {fault ? <Btn c="green" onClick={() => onClear(fault)}>✓ Clear fault</Btn>
+            : <Btn c="red" onClick={() => onInject(m.id, spec.code)} title={spec.label}>⚡ Force fault: {spec.label}</Btn>}
+        </div>;
+      })()}
       {part.description && <p className="mt-2 text-slate-300">{part.description}</p>}
       <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-mono text-[11px] tabular-nums">
         {Object.entries(tele).map(([k, v]) => (<div key={k} className="contents"><dt className="text-slate-500">{k}</dt><dd className="text-slate-100">{v}</dd></div>))}
@@ -266,7 +276,7 @@ export function RightPanel(p: Props) {
           </button>))}
       </div>
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-2.5">
-        {part && <PartCard sim={p.sim} part={part} onLocate={p.onFramePart} onRepair={p.onRepair} />}
+        {part && <PartCard sim={p.sim} part={part} onLocate={p.onFramePart} onRepair={p.onRepair} onInject={p.onInject} onClear={p.onClear} />}
         <div className="text-xs font-semibold text-slate-300">{p.tab === "controls" ? (p.machine ? MACHINE[p.machine].name : "Whole production line") : ""}</div>
         {p.tab === "controls" && (p.machine
           ? <MachineControls sim={p.sim} id={p.machine} explode={p.explode} setExplode={p.setExplode} onIsolate={p.onIsolate} onExploded={p.onExploded} onXray={p.toggleXray} act={p.act} me={p.me} onClaim={p.onClaim} />

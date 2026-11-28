@@ -1,9 +1,22 @@
 // Factory hall: dark epoxy floor (wear texture, yellow markings, hazard zones), open-top steel columns, light fixtures, cable trays,
 // walls, high-bay racks, safety fences, catwalk. Repetitive elements are instanced (drei <Instances> = InstancedMesh).
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
 import { Instance, Instances, Line, MeshReflectorMaterial } from "@react-three/drei";
 import { AGV_PATH, HALL, RACK } from "../twin/layout";
+import { euroPallet } from "../twin/machines/line";
+import { geometryFor } from "./cad";
+import { makeMaterial, realTexture } from "./materials";
+
+/** Scanned PBR set (Poly Haven) when downloaded, else null -> procedural fallback. */
+function useScanned(set: string, repeat: number) {
+  const [maps, setMaps] = useState<{ map: THREE.Texture; normalMap: THREE.Texture; roughnessMap: THREE.Texture } | null>(null);
+  useEffect(() => {
+    Promise.all([realTexture(set, "diff", repeat, true), realTexture(set, "nor_gl", repeat), realTexture(set, "rough", repeat)])
+      .then(([map, normalMap, roughnessMap]) => map && normalMap && roughnessMap && setMaps({ map, normalMap, roughnessMap }));
+  }, [set, repeat]);
+  return maps;
+}
 
 const W = HALL.x1 - HALL.x0, D = HALL.z1 - HALL.z0, CX = (HALL.x0 + HALL.x1) / 2, CZ = (HALL.z0 + HALL.z1) / 2;
 
@@ -41,6 +54,7 @@ const HAZARD: [number, number, number, number][] = [[-1, 0, 4.6, 5.2], [14, 0, 7
 
 function Floor({ quality }: { quality: boolean }) {
   const epoxy = useMemo(epoxyTexture, []);
+  const concrete = useScanned("hangar_concrete_floor", W / 4);       // scanned hangar concrete, sealed dark
   const strips = useMemo(() => {             // each border strip gets its own texture clone so the stripe repeat follows its length
     const base = hazardTexture();
     return HAZARD.flatMap(([cx, cz, w, d]) => [[cx, cz - d / 2, w, 0], [cx, cz + d / 2, w, 0], [cx - w / 2, cz, d, Math.PI / 2], [cx + w / 2, cz, d, Math.PI / 2]].map(([x, z, len, rot]) => {
@@ -55,8 +69,8 @@ function Floor({ quality }: { quality: boolean }) {
         <planeGeometry args={[W, D]} />
         {quality
           ? <MeshReflectorMaterial resolution={512} mixBlur={1} mixStrength={2.2} blur={[300, 80]} roughness={0.75} depthScale={0.4}
-                                   minDepthThreshold={0.4} maxDepthThreshold={1.2} map={epoxy} color="#aab2bd" metalness={0.2} mirror={0.3} />
-          : <meshStandardMaterial map={epoxy} color="#aab2bd" roughness={0.55} metalness={0.1} />}
+                                   minDepthThreshold={0.4} maxDepthThreshold={1.2} {...(concrete ?? { map: epoxy })} color={concrete ? "#6b7280" : "#aab2bd"} metalness={0.2} mirror={0.3} normalScale={[0.6, 0.6] as unknown as THREE.Vector2} key={concrete ? "c" : "e"} />
+          : <meshStandardMaterial {...(concrete ?? { map: epoxy })} color={concrete ? "#6b7280" : "#aab2bd"} roughness={0.55} metalness={0.1} key={concrete ? "c" : "e"} />}
       </mesh>
       {/* walkway lines and AGV guide path */}
       {[-4.2, 4.2].map((z) => (
@@ -72,6 +86,7 @@ function Floor({ quality }: { quality: boolean }) {
 }
 
 function Structure() {
+  const iron = useScanned("corrugated_iron", 6);                   // cladding on the back and left walls
   const cols = useMemo(() => {
     const out: [number, number, number][] = [];
     for (let x = HALL.x0; x <= HALL.x1 + 0.1; x += 10) for (const z of [HALL.z0 + 0.3, HALL.z1 - 0.3]) out.push([x, HALL.height / 2, z]);
@@ -108,12 +123,15 @@ function Structure() {
         </group>
       ))}
       {/* walls: back and left only, so the cameras keep an open view */}
-      <mesh position={[CX, HALL.height / 2, HALL.z0]} receiveShadow><boxGeometry args={[W, HALL.height, 0.2]} /><meshStandardMaterial color="#cbd5e1" roughness={0.8} /></mesh>
+      <mesh position={[CX, HALL.height / 2, HALL.z0]} receiveShadow><boxGeometry args={[W, HALL.height, 0.2]} /><meshStandardMaterial {...(iron ?? {})} color="#cbd5e1" roughness={0.8} metalness={iron ? 0.5 : 0} key={iron ? "i" : "p"} /></mesh>
       <mesh position={[CX, HALL.height - 2.4, HALL.z0 + 0.12]}><boxGeometry args={[W - 4, 1.2, 0.05]} /><meshStandardMaterial color="#e0f2fe" emissive="#bae6fd" emissiveIntensity={0.6} /></mesh>
-      <mesh position={[HALL.x0, HALL.height / 2, CZ]} receiveShadow><boxGeometry args={[0.2, HALL.height, D]} /><meshStandardMaterial color="#cbd5e1" roughness={0.8} /></mesh>
+      <mesh position={[HALL.x0, HALL.height / 2, CZ]} receiveShadow><boxGeometry args={[0.2, HALL.height, D]} /><meshStandardMaterial {...(iron ?? {})} color="#cbd5e1" roughness={0.8} metalness={iron ? 0.5 : 0} key={iron ? "i" : "p"} /></mesh>
     </group>
   );
 }
+
+const loadGeo = { pallet: geometryFor(euroPallet), carton: geometryFor({ kind: "rbox", size: [1.14, 0.9, 0.78], r: 0.03 }) };
+const loadMat = { pallet: makeMaterial("wood"), carton: makeMaterial("wood", "#c49a6c") };
 
 function Racks() {
   const { uprights, beams, loads } = useMemo(() => {
@@ -124,7 +142,7 @@ function Racks() {
       for (let b = 0; b < RACK.bays; b++) for (let l = 0; l < RACK.levels; l++) {
         const z = RACK.z0 + (b + 0.5) * RACK.bay, y = 0.25 + l * RACK.level;
         for (const dx of [-RACK.depth / 2, RACK.depth / 2]) beams.push([x + dx, y, z]);
-        if ((b * 7 + l * 3 + Math.round(x)) % 5 !== 0) loads.push([x, y + 0.55, z]);       // ~80 % occupied, deterministic
+        if ((b * 7 + l * 3 + Math.round(x)) % 5 !== 0) loads.push([x, y + 0.06, z]);       // ~80 % occupied, deterministic
       }
     }
     return { uprights, beams, loads };
@@ -141,10 +159,12 @@ function Racks() {
         <meshStandardMaterial color="#f97316" metalness={0.4} roughness={0.5} />
         {beams.map((p, i) => <Instance key={i} position={p} />)}
       </Instances>
-      <Instances limit={128} castShadow>
-        <boxGeometry args={[1.0, 1.0, 1.9]} />
-        <meshStandardMaterial color="#a16207" roughness={0.9} />
-        {loads.map((p, i) => <Instance key={i} position={p} />)}
+      {/* Euro pallet (rotated: 1.2 m deep) + stretch-wrapped cartons */}
+      <Instances limit={128} castShadow geometry={loadGeo.pallet} material={loadMat.pallet}>
+        {loads.map((p, i) => <Instance key={i} position={p} rotation={[0, Math.PI / 2, 0]} />)}
+      </Instances>
+      <Instances limit={128} castShadow geometry={loadGeo.carton} material={loadMat.carton}>
+        {loads.map((p, i) => { const h = 0.8 + ((i * 37) % 5) / 10; return <Instance key={i} position={[p[0], p[1] + 0.15 + 0.45 * h, p[2]]} rotation={[0, Math.PI / 2, 0]} scale={[1, h, 1]} />; })}
       </Instances>
     </group>
   );

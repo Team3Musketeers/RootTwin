@@ -34,3 +34,7 @@ frontend/dist/
 
 # hand-made / downloaded 3D models for the twin are kept (only trained ML weights are ignored)
 !frontend/public/models/
+
+# Poly Haven CC0 assets: re-download with python scripts/fetch_polyhaven.py
+frontend/public/models/polyhaven/
+frontend/public/textures/

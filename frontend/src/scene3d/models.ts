@@ -22,7 +22,7 @@ export const glbKey = (partId: string) => partId.replace(/[[\].:/]/g, "");
 
 /** sanitized part id -> geometry from a loaded glTF scene (node transforms baked relative to the node itself). */
 export function useGlbParts(url: string) {
-  const { scene } = useGLTF(url);
+  const { scene } = useGLTF(url, false, true);         // Meshopt-compressed .glb supported (decoder bundled, no CDN)
   const [parts] = useState(() => {
     const out = new Map<string, THREE.BufferGeometry>();
     scene.updateMatrixWorld(true);

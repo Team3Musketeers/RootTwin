@@ -167,7 +167,7 @@ function Exploded(p: Props) {
       <div className="flex gap-3 text-[11px] text-slate-300">
         <label className="flex items-center gap-1"><input type="checkbox" checked={p.guides} onChange={p.toggleGuides} className="accent-sky-500" /> axis guide lines</label>
         <label className="flex items-center gap-1"><input type="checkbox" checked={p.xray} onChange={p.toggleXray} className="accent-sky-500" /> X-ray housings</label>
-        <label className="flex items-center gap-1"><input type="checkbox" checked={p.labels} onChange={p.toggleLabels} className="accent-sky-500" /> part callouts</label>
+        <label className="flex items-center gap-1"><input type="checkbox" checked={p.labels} onChange={p.toggleLabels} className="accent-sky-500" /> all labels</label>
       </div>
       <table className="w-full text-[11px]">
         <thead className="text-left text-slate-500"><tr><th className="font-normal">Part no.</th><th className="font-normal">Component</th><th className="font-normal">Cat.</th></tr></thead>

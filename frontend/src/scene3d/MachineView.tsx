@@ -8,10 +8,12 @@ import { explodeProgress } from "../twin/explode";
 import type { MachineDef, Part } from "../twin/types";
 import { geometryFor } from "./cad";
 import { objects, useView } from "./context";
+import { labelVisible } from "./hud";
 import { isEmissivePreset, makeMaterial } from "./materials";
 import { glbKey, useGlbParts, useModelUrl } from "./models";
 
 const noRaycast = () => undefined;              // ghosted machines are not clickable
+const tmpV = new THREE.Vector3(), tmpQ = new THREE.Quaternion();
 const CRIMSON = new THREE.Color("#ff0a1e"), AMBER = new THREE.Color("#ff6a00"), CYAN = new THREE.Color("#38bdf8"), XRAY = new THREE.Color("#7dd3fc"), GHOST = new THREE.Color("#94a3b8");
 
 interface Node { part: Part; children: Node[] }
@@ -30,6 +32,7 @@ function PartNode({ node, def, maxOrder, explodeRef, glb }: { node: Node; def: M
   const guide = useRef<any>(null);
   const leader = useRef<any>(null);
   const label = useRef<HTMLDivElement>(null);
+  const ring = useRef<THREE.Mesh>(null);
   const geometry = useMemo(() => glb?.get(glbKey(p.id)) ?? geometryFor(p.geo), [p.geo, p.id, glb]);   // real CAD mesh when provided
   const mat = useMemo(() => makeMaterial(p.mat, p.color), [p.mat, p.color]);
   useEffect(() => () => mat.dispose(), [mat]);
@@ -37,12 +40,13 @@ function PartNode({ node, def, maxOrder, explodeRef, glb }: { node: Node; def: M
   const mine = v.machine === def.id;
   const isolatedOther = v.mode !== "factory" && v.machine !== null && !mine;
   const base = mat.userData.base as { color: THREE.Color; emissive: THREE.Color; emissiveIntensity: number; opacity: number; transparent: boolean };
+  const ringR = useMemo(() => { if (!geometry.boundingSphere) geometry.computeBoundingSphere(); return Math.max(0.12, geometry.boundingSphere!.radius * 1.25); }, [geometry]);
   const labelOffset = useMemo(() => {
     const e = new THREE.Vector3(...p.explodeVector);
     return (e.lengthSq() > 0 ? e.normalize().multiplyScalar(0.25) : new THREE.Vector3()).add(new THREE.Vector3(0, 0.3, 0));
   }, [p.explodeVector]);
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock, camera, gl }) => {
     const g = group.current;
     if (!g) return;
     const rt = v.sim.rt[def.id];
@@ -60,7 +64,7 @@ function PartNode({ node, def, maxOrder, explodeRef, glb }: { node: Node; def: M
       const pulse = 0.55 + 0.45 * Math.sin(clock.elapsedTime * 7);
       mat.color.copy(fault.severity === "critical" ? CRIMSON : AMBER);
       mat.emissive.copy(fault.severity === "critical" ? CRIMSON : AMBER);
-      mat.emissiveIntensity = (fault.severity === "critical" ? 2.6 : 1.4) * pulse;          // > 1: picked up by the bloom pass
+      mat.emissiveIntensity = (fault.severity === "critical" ? 4 : 2) * pulse;              // > 1: picked up by the bloom pass
       opacity = 1; transparent = false;
     } else {
       mat.color.copy(base.color);
@@ -82,9 +86,25 @@ function PartNode({ node, def, maxOrder, explodeRef, glb }: { node: Node; def: M
       guide.current.visible = showGuide;
       if (showGuide) guide.current.geometry.setPositions([pos[0] - p.explodeVector[0] * 0.15, pos[1] - p.explodeVector[1] * 0.15, pos[2] - p.explodeVector[2] * 0.15, g.position.x, g.position.y, g.position.z]);
     }
-    const showLabel = v.labels && mine && (explodeRef.current > 0.25 || sel);
+    // target ring around a faulted part: always faces the camera, drawn through housings, pulses
+    if (ring.current) {
+      const r = ring.current, on = !!fault && !isolatedOther;
+      r.visible = on;
+      if (on) {
+        g.getWorldQuaternion(tmpQ).invert();
+        r.quaternion.copy(tmpQ.multiply(camera.quaternion));
+        r.scale.setScalar(1 + 0.18 * Math.sin(clock.elapsedTime * 5));
+        (r.material as THREE.MeshBasicMaterial).color.copy(fault!.severity === "critical" ? CRIMSON : AMBER);
+      }
+    }
+    // callouts: only hovered / selected / faulted parts (all of them with the "All labels" toggle), never under the HUD
+    let showLabel = mine && (sel || hov || !!fault || (v.labels && explodeRef.current > 0.25));
+    if (showLabel) showLabel = labelVisible(g.localToWorld(tmpV.copy(labelOffset)), camera, gl.domElement);
     if (leader.current) leader.current.visible = showLabel;
-    if (label.current) label.current.style.display = showLabel ? "block" : "none";
+    if (label.current) {
+      label.current.style.display = showLabel ? "block" : "none";
+      label.current.style.borderColor = fault ? "#ef4444" : sel ? "#38bdf8" : "#64748b";
+    }
   });
 
   const onClick = (ev: ThreeEvent<MouseEvent>) => {
@@ -92,7 +112,6 @@ function PartNode({ node, def, maxOrder, explodeRef, glb }: { node: Node; def: M
     if (isolatedOther) return;
     if (mine && v.mode !== "factory") v.selectPart(p.id); else v.selectMachine(def.id);
   };
-  const health = v.sim.partFault(p.id);
   return (
     <>
       <group ref={group}>
@@ -101,11 +120,15 @@ function PartNode({ node, def, maxOrder, explodeRef, glb }: { node: Node; def: M
               onPointerOver={(ev) => { ev.stopPropagation(); if (!isolatedOther) { v.hover(p.id); document.body.style.cursor = "pointer"; } }}
               onPointerOut={() => { v.hover(null); document.body.style.cursor = ""; }}
               raycast={isolatedOther ? noRaycast : THREE.Mesh.prototype.raycast} />
+        <mesh ref={ring} visible={false} renderOrder={20}>
+          <torusGeometry args={[ringR, ringR * 0.04, 8, 48]} />
+          <meshBasicMaterial transparent opacity={0.9} depthTest={false} toneMapped={false} />
+        </mesh>
         {mine && (
           <>
             <Line ref={leader} points={[[0, 0, 0], labelOffset.toArray() as [number, number, number]]} color="#e2e8f0" lineWidth={1} transparent opacity={0.7} visible={false} />
             <Html position={labelOffset.toArray() as [number, number, number]} zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
-              <div ref={label} style={{ display: "none" }} className={`-translate-y-1/2 whitespace-nowrap rounded-sm border-l-2 bg-slate-950/90 px-1.5 py-0.5 text-[10px] text-slate-100 shadow ${health ? "border-red-500" : "border-sky-400"}`}>
+              <div ref={label} style={{ display: "none" }} className="-translate-y-1/2 whitespace-nowrap rounded-sm border-l-2 bg-slate-950/90 px-1.5 py-0.5 text-[10px] text-slate-100 shadow">
                 <span className="font-mono text-sky-300">{p.partNumber}</span> {p.name}
               </div>
             </Html>

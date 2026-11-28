@@ -1,5 +1,5 @@
 // Robotic cells: dual-robot welding cell and heavy palletizing robot (CAD-level parts).
-import { at, comp, cy, fmt, hose, lathe, motorS, partFactory, pneuCyl, rb, robotArm, X, Z } from "../build";
+import { at, comp, cy, fmt, hinges, hose, lathe, louvres, motorS, partFactory, pneuCyl, rb, robotArm, X, Z } from "../build";
 import { BELT_Y, ST } from "../layout";
 import type { Control, MachineDef } from "../types";
 
@@ -7,10 +7,15 @@ const joints = (prefix: string, who: string): Control[] =>
   [1, 2, 3, 4, 5, 6].map((n) => ({ key: `${prefix}J${n}`, label: `${who} J${n}`, unit: "°", min: -180, max: 180, step: 0.5 }));
 
 /** Industrial cabinet with louvres, door handle and a nameplate. */
+/** Floor-standing electrical enclosure: body, plinth, rain hood, recessed door with gasket line, louvres, hinges, handle. */
 const cabinet = (w: number, h: number, d: number) => comp(
   at(rb(w, h, d, 0.02)),
-  ...Array.from({ length: 6 }, (_, i) => at(rb(w * 0.5, 0.012, 0.02, 0.005), [0, h * 0.3 - i * 0.04, d / 2 + 0.005])),
-  at(rb(0.03, 0.18, 0.04, 0.01), [w * 0.38, 0, d / 2 + 0.02]),
+  at(rb(w + 0.02, 0.08, d + 0.02, 0.01), [0, -h / 2 + 0.04, 0]),                       // plinth
+  at(rb(w + 0.06, 0.025, d + 0.08, 0.01), [0, h / 2 + 0.012, 0.02]),                  // rain hood
+  at(rb(w - 0.06, h - 0.14, 0.012, 0.006), [0, 0.02, d / 2 + 0.004]),                // door leaf (gasket shadow line around it)
+  at(louvres(w * 0.5), [0, h * 0.28, d / 2 + 0.012]), at(louvres(w * 0.5), [0, -h * 0.3, d / 2 + 0.012]),
+  at(rb(0.03, 0.18, 0.04, 0.01), [w * 0.38, 0, d / 2 + 0.03]),                        // swing handle
+  at(hinges(h - 0.2, -w / 2 + 0.03), [0, 0, d / 2]),
 );
 
 // ------------------------------------------------------------------ 6. dual-robot welding cell

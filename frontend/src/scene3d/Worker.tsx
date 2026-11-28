@@ -7,8 +7,10 @@ import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import { MACHINES } from "../twin/registry";
 import { useView } from "./context";
+import { labelVisible } from "./hud";
 import { cameraApi } from "./TwinCanvas";
 
+const tmpW = new THREE.Vector3(), NO_KEYS = new Set<string>();
 export const HAT: Record<string, string> = { operator: "#facc15", technician: "#2563eb", maintenance: "#f97316", supervisor: "#f8fafc" };
 
 /** Local player state (read by the HUD and the control stations for the reach check). */
@@ -26,8 +28,8 @@ export function blocked(x: number, z: number) {
 /** Ground ring + floating tag showing what a worker is doing: blue idle, green operating, pulsing red if their machine is faulted. */
 function Status({ name, self }: { name: string; self?: boolean }) {
   const v = useView();
-  const ring = useRef<THREE.MeshBasicMaterial>(null), tag = useRef<HTMLDivElement>(null);
-  useFrame(({ clock }) => {
+  const ring = useRef<THREE.MeshBasicMaterial>(null), tag = useRef<HTMLDivElement>(null), anchor = useRef<THREE.Group>(null);
+  useFrame(({ clock, camera, gl }) => {
     const machine = Object.entries(v.sim.owner).find(([, who]) => who === name)?.[0];
     const faulty = machine && v.sim.machineFaults(machine).length > 0;
     const repairing = Object.values(v.sim.repairs).some((r) => r.by === name);
@@ -36,11 +38,13 @@ function Status({ name, self }: { name: string; self?: boolean }) {
     if (tag.current) {
       tag.current.textContent = `${self ? "You" : name}${repairing ? " · 🔧 repairing" : machine ? ` · operating ${machine}${faulty ? " ⚠" : ""}` : ""}`;
       tag.current.style.borderColor = repairing ? "#f59e0b" : faulty ? "#ff1a1a" : machine ? "#22c55e" : "#38bdf8";
+      tag.current.style.display = anchor.current && labelVisible(anchor.current.getWorldPosition(tmpW), camera, gl.domElement) ? "block" : "none";
     }
   });
   return (
     <>
       <mesh rotation-x={-Math.PI / 2} position={[0, 0.012, 0]}><ringGeometry args={[0.38, 0.47, 40]} /><meshBasicMaterial ref={ring} transparent toneMapped={false} /></mesh>
+      <group ref={anchor} position={[0, 2.15, 0]} />
       <Html position={[0, 2.15, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: "none" }}>
         <div ref={tag} className="whitespace-nowrap rounded border-l-2 bg-slate-950/85 px-1.5 py-0.5 text-[10px] text-white shadow" />
       </Html>
@@ -50,6 +54,7 @@ function Status({ name, self }: { name: string; self?: boolean }) {
 
 function Body({ hat, walk }: { hat: string; walk: { current: number } }) {
   const legL = useRef<THREE.Group>(null), legR = useRef<THREE.Group>(null), armL = useRef<THREE.Group>(null), armR = useRef<THREE.Group>(null);
+  const torso = useRef<THREE.Group>(null), last = useRef(0);
   const m = useMemo(() => ({
     wear: new THREE.MeshStandardMaterial({ color: "#1e3a5f", roughness: 0.85 }),
     vest: new THREE.MeshStandardMaterial({ color: "#d4ff1e", emissive: "#a3e635", emissiveIntensity: 0.25, roughness: 0.7 }),
@@ -59,12 +64,16 @@ function Body({ hat, walk }: { hat: string; walk: { current: number } }) {
     hat: new THREE.MeshPhysicalMaterial({ color: hat, roughness: 0.35, clearcoat: 0.8 }),
   }), [hat]);
   useEffect(() => () => Object.values(m).forEach((x) => x.dispose()), [m]);
-  useFrame(() => {
-    const s = Math.sin(walk.current) * 0.55;
+  useFrame(({ clock }) => {
+    const moving = Math.abs(walk.current - last.current) > 1e-3;
+    last.current = walk.current;
+    const t = clock.elapsedTime, s = Math.sin(walk.current) * 0.55;
+    const idle = moving ? 0 : Math.sin(t * 1.6) * 0.04;                 // idle: breathing + slight arm sway
     if (legL.current) legL.current.rotation.x = s;
     if (legR.current) legR.current.rotation.x = -s;
-    if (armL.current) armL.current.rotation.x = -s * 0.8;
-    if (armR.current) armR.current.rotation.x = s * 0.8;
+    if (armL.current) { armL.current.rotation.x = -s * 0.8 + idle; armL.current.rotation.z = moving ? 0 : -0.06; }
+    if (armR.current) { armR.current.rotation.x = s * 0.8 - idle; armR.current.rotation.z = moving ? 0 : 0.06; }
+    if (torso.current) torso.current.position.y = moving ? Math.abs(Math.cos(walk.current)) * 0.025 : Math.sin(t * 1.6) * 0.006;
   });
   const leg = (ref: React.RefObject<THREE.Group>, x: number) => (
     <group ref={ref} position={[x, 0.9, 0]}>
@@ -80,7 +89,9 @@ function Body({ hat, walk }: { hat: string; walk: { current: number } }) {
   );
   return (
     <group>
-      {leg(legL, -0.1)}{leg(legR, 0.1)}{arm(armL, -0.25)}{arm(armR, 0.25)}
+      {leg(legL, -0.1)}{leg(legR, 0.1)}
+      <group ref={torso}>
+      {arm(armL, -0.25)}{arm(armR, 0.25)}
       <mesh position={[0, 1.18, 0]} material={m.vest} castShadow><capsuleGeometry args={[0.19, 0.42, 6, 16]} /></mesh>
       {[1.02, 1.24].map((y) => <mesh key={y} position={[0, y, 0]} material={m.tape}><cylinderGeometry args={[0.197, 0.197, 0.035, 20, 1, true]} /></mesh>)}
       <mesh position={[0, 1.57, 0]} material={m.skin}><cylinderGeometry args={[0.05, 0.06, 0.08, 12]} /></mesh>
@@ -89,6 +100,7 @@ function Body({ hat, walk }: { hat: string; walk: { current: number } }) {
       <mesh position={[0, 1.75, 0]} material={m.hat} castShadow><sphereGeometry args={[0.13, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2]} /></mesh>
       <mesh position={[0, 1.75, 0.06]} rotation={[-0.1, 0, 0]} material={m.hat}><cylinderGeometry args={[0.15, 0.15, 0.012, 24, 1, false, -Math.PI / 2, Math.PI]} /></mesh>
       <mesh position={[0, 1.86, 0]} rotation={[0, 0, Math.PI / 2]} material={m.hat}><capsuleGeometry args={[0.012, 0.16, 4, 8]} /></mesh>
+      </group>
     </group>
   );
 }
@@ -106,8 +118,8 @@ export function LocalWorker() {
     return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); window.removeEventListener("blur", blur); };
   }, []);
   useFrame((_, dt) => {
-    if (!g.current || !v.walk) return;
-    const k = keys.current, c = cameraApi.controls;
+    if (!g.current) return;
+    const k = v.walk ? keys.current : NO_KEYS, c = cameraApi.controls;   // keys only in worker mode; click-to-walk / claims always
     const f = (k.has("w") || k.has("arrowup") ? 1 : 0) - (k.has("s") || k.has("arrowdown") ? 1 : 0);
     const r = (k.has("d") || k.has("arrowright") ? 1 : 0) - (k.has("a") || k.has("arrowleft") ? 1 : 0);
     const az = c?.azimuthAngle ?? 0;
@@ -129,7 +141,7 @@ export function LocalWorker() {
       if (bx && bz) player.goal = null;                  // walked into a machine: stop
       const target = Math.atan2(dx, dz);
       player.yaw += Math.atan2(Math.sin(target - player.yaw), Math.cos(target - player.yaw)) * Math.min(1, dt * 10);
-      if (!v.fp) c?.moveTo(player.x, 1.2, player.z, false);   // camera follows, the user can still orbit with the mouse
+      if (v.walk && !v.fp) c?.moveTo(player.x, 1.2, player.z, false);   // camera follows, the user can still orbit with the mouse
     }
     if (v.fp && c) {                                     // first person: the camera orbits a few cm around the eye = mouse look
       c.moveTo(player.x, 1.7, player.z, false);
@@ -148,9 +160,9 @@ export function LocalWorker() {
       <mesh rotation-x={-Math.PI / 2} position={[0, 0.006, 0]} onClick={(e) => { e.stopPropagation(); player.goal = { x: e.point.x, z: e.point.z }; }}>
         <planeGeometry args={[200, 200]} /><meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>)}
-    <group ref={g} visible={v.walk && !v.fp}>
+    <group ref={g} visible={!v.fp}>
       <Body hat={HAT[v.floor.me?.role ?? "technician"]} walk={walk} />
-      {v.walk && !v.fp && <Status name={v.floor.myName} self />}
+      {!v.fp && <Status name={v.floor.myName} self />}
     </group>
     </>
   );

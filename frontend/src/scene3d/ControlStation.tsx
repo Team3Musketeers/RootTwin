@@ -8,9 +8,11 @@ import * as THREE from "three";
 import type { MachineDef } from "../twin/types";
 import { useView } from "./context";
 import { cameraApi } from "./TwinCanvas";
+import { labelVisible } from "./hud";
 import { player } from "./Worker";
 
-const REACH = 2.6;      // m: in worker mode you must stand at the panel to operate it
+const REACH = 2.6;
+const tmp = new THREE.Vector3();      // m: in worker mode you must stand at the panel to operate it
 
 function Button({ color, pos, size = 0.028, onPress, label }: { color: string; pos: [number, number, number]; size?: number; onPress: () => void; label: string }) {
   const ref = useRef<THREE.Group>(null);
@@ -47,7 +49,7 @@ export function ControlStation({ def }: { def: MachineDef }) {
   };
   const act = (a: Parameters<typeof v.act>[0], always = false) => { if (always || can()) v.act(a); };
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock, camera, gl }) => {
     const faulty = v.sim.machineFaults(def.id).length > 0;
     if (lamp.current) {
       lamp.current.color.set(faulty ? "#ff1a1a" : rt.status === "RUN" ? "#22c55e" : "#f59e0b");
@@ -56,6 +58,10 @@ export function ControlStation({ def }: { def: MachineDef }) {
     }
     if (wheel.current && wheelCtl) wheel.current.rotation.z = -((rt.set[wheelCtl.key] ?? 0) - wheelCtl.min) / (wheelCtl.max - wheelCtl.min) * Math.PI * 6;
     if (key.current) key.current.rotation.y = rt.manual ? Math.PI / 4 : -Math.PI / 4;
+    if (tag.current) {                              // panel tag only for the machine in focus or the one the worker stands at
+      const near = v.walk ? Math.hypot(player.x - world.x, player.z - world.z) < 4 : v.machine === def.id;
+      tag.current.style.display = near && labelVisible(tmp.set(world.x, 1.5, world.z), camera, gl.domElement) ? "block" : "none";
+    }
     if (tag.current && Math.round(clock.elapsedTime * 60) % 12 === 0) {      // ~5 Hz text refresh, no React render
       const o = v.sim.owner[def.id];
       tag.current.textContent = `${def.id} · ${rt.manual ? "MANUAL" : "AUTO"}${wheelCtl ? ` · ${wheelCtl.key} ${(rt.set[wheelCtl.key] ?? 0).toFixed(wheelCtl.step < 1 ? 2 : 0)}` : ""} · ${o ?? "unclaimed"}`;

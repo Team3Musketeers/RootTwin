@@ -1,5 +1,5 @@
 // AMR fleet and the main-line PLC / electrical cabinet bank (CAD-level parts).
-import { at, bolts, comp, cy, fmt, hose, lathe, motorS, partFactory, rb, roundedRectOutline, Z } from "../build";
+import { at, bolts, comp, cy, fmt, hose, lathe, motorS, partFactory, rb, roundedRectOutline, Z, louvres } from "../build";
 import { PLC_POS } from "../layout";
 import type { MachineDef, MachineRuntime } from "../types";
 
@@ -73,7 +73,6 @@ export function agv(n: number): MachineDef {
 // ------------------------------------------------------------------ 8. main-line PLC & electrical cabinet bank
 const e = partFactory("PLC");
 const fan = (rt: MachineRuntime) => rt.phase.fan ?? 0;
-const louvres = (w: number) => comp(...Array.from({ length: 7 }, (_, i) => at(rb(w, 0.012, 0.03, 0.004), [0, -0.12 + i * 0.04, 0])));
 const din = (len: number) => comp(at(rb(len, 0.035, 0.008, 0.002)), at(rb(len, 0.008, 0.02, 0.002), [0, 0.016, 0.008]), at(rb(len, 0.008, 0.02, 0.002), [0, -0.016, 0.008]));
 export const plc: MachineDef = {
   id: "PLC", type: "plc", name: "Main line PLC & electrical cabinets", zone: "control", position: PLC_POS, size: [4.4, 2.4, 0.8],

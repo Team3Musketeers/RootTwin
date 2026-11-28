@@ -32,7 +32,7 @@ export default function App() {
   const [hoverPart, setHover] = useState<string | null>(null);
   const [explode, setExplode] = useState(0.6);
   const [guides, setGuides] = useState(true);
-  const [labels, setLabels] = useState(true);
+  const [labels, setLabels] = useState(false);    // "All labels"; hovered / selected / faulted parts are always labelled
   const [xray, setXray] = useState(false);
   const [walk, setWalk] = useState(false);
   const [fp, setFp] = useState(false);
@@ -98,7 +98,15 @@ export default function App() {
     }
     return best;
   };
-  const toggleClaim = (id: string) => act({ m: "claim", id, who: sim.owner[id] === floor.myName ? null : floor.myName });
+  const toggleClaim = (id: string) => {
+    const claiming = sim.owner[id] !== floor.myName;
+    act({ m: "claim", id, who: claiming ? floor.myName : null });
+    const m = MACHINE[id];
+    if (claiming && m.type !== "agv") {                  // the worker goes and stands at the machine's control panel
+      const spot = { x: m.position[0] + m.size[0] / 2 + 0.6, z: m.position[2] + m.size[2] / 2 + 0.75 };
+      if (walk) player.goal = spot; else { player.x = spot.x; player.z = spot.z; player.yaw = Math.PI; }
+    }
+  };
   /** Factory I/O-like cameras: 1 orbit, 2 follow the worker, 3 first person. */
   const setCamera = (cam: "orbit" | "follow" | "fp") => {
     const c = cameraApi.controls;

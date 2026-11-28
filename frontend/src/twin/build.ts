@@ -63,6 +63,11 @@ export function panel(w: number, h: number, t = 0.03): Shape {
   }
   return comp(...items);
 }
+/** Ventilation louvre grille (7 angled slats) of width w, facing +z. */
+export const louvres = (w: number, n = 7) => comp(...Array.from({ length: n }, (_, i) => at(rb(w, 0.012, 0.03, 0.004), [0, -0.12 + i * 0.04, 0], [0.5, 0, 0])));
+/** Lift-off cabinet hinge pair on the left edge of a door of height h (door faces +z). */
+export const hinges = (h: number, x: number) => comp(...[-0.35, 0.35].map((f) => at(cy(0.012, 0.08), [x, f * h, 0.02])));
+
 /** Rounded rectangle outline (w x h, corner radius r) for extrusions. */
 export function roundedRectOutline(w: number, h: number, r: number): [number, number][] {
   const out: [number, number][] = [];

@@ -1,5 +1,5 @@
 // Main-line machines as CAD assemblies: pallet dispenser, vision portal, CNC machining centre, gearbox + hydraulic press, conveyors.
-import { at, bolts, comp, cy, fmt, hose, lathe, motorS, panel, partFactory, pneuCyl, rb, X, Z } from "../build";
+import { at, bolts, comp, cy, fmt, hose, lathe, louvres, motorS, panel, partFactory, pneuCyl, rb, X, Z } from "../build";
 import { BELT_Y, LINE_X0, ST } from "../layout";
 import type { Control, MachineDef, MachineRuntime, Shape, V3 } from "../types";
 
@@ -83,7 +83,9 @@ export const dispenser: MachineDef = {
     ] },
     { id: "DSP.ctrl", name: "Control & signalling", parts: [
       d({ id: "DSP.box", name: "Local control box (IP65)", category: "electrical", mat: "sheetGrey", pos: [1.15, 1.25, -0.6], explodeVector: [0.7, 0, -0.3], explodeOrder: 2, housing: true,
-        geo: comp(at(rb(0.12, 0.6, 0.45, 0.02)), at(rb(0.02, 0.5, 0.36, 0.005), [0.065, 0, 0]), ...[-0.2, 0.2].map((y) => at(cy(0.012, 0.03), [0.075, y, 0.19], Z))),
+        geo: comp(at(rb(0.12, 0.6, 0.45, 0.02)), at(rb(0.02, 0.5, 0.36, 0.005), [0.065, 0, 0]), ...[-0.2, 0.2].map((y) => at(cy(0.012, 0.03), [0.075, y, 0.19], Z)),
+          at(rb(0.12, 0.04, 0.4, 0.008), [0, -0.32, 0]), ...[-0.12, 0, 0.12].map((z) => at(cy(0.014, 0.04), [0, -0.36, z])),   // gland plate + cable glands
+          at(rb(0.03, 0.06, 0.03, 0.006), [0.08, 0, -0.17])),                                                                  // quarter-turn latch
         description: "Remote I/O, motor starter and safety relay for the dispenser.", material: "Powder-coated steel, IP65" }),
       d({ id: "DSP.label", name: "Dispenser nameplate", category: "structural", mat: "nameplate", parent: "DSP.box", pos: [0.064, -0.15, 0], rot: [0, PI / 2, 0], explodeVector: [0.2, 0, 0], explodeOrder: 0, geo: decal(0.24, 0.12) }),
       d({ id: "DSP.hmi", name: "Operator touch panel 7\"", category: "electrical", mat: "screen", pos: [1.22, 1.45, -0.6], rot: [0, PI / 2, 0], explodeVector: [0.5, 0.2, 0], explodeOrder: 1, geo: rb(0.2, 0.14, 0.01, 0.005) }),
@@ -193,6 +195,16 @@ export const cnc: MachineDef = {
         motion: (rt) => ({ pos: [-0.8 + 1.5 * (rt.phase.door ?? 1), 2.06, 1.56 + 0.08 * (rt.phase.door ?? 1)] }), description: "Interlocked sliding door (category 3 safety switch).",
         telemetry: (rt) => ({ position: (rt.phase.door ?? 1) > 0.95 ? "open" : (rt.phase.door ?? 1) < 0.05 ? "closed & locked" : "moving" }) }),
       c({ id: "CNC.glass", name: "Tempered safety glass", category: "structural", mat: "glass", parent: "CNC.door", pos: [0, 0, 0], explodeVector: [0, 0, 0.5], explodeOrder: 0, geo: rb(1.38, 1.5, 0.02, 0.005), material: "Laminated polycarbonate + tempered glass" }),
+      c({ id: "CNC.posts", name: "Enclosure corner posts (folded steel)", category: "structural", mat: "graphite", pos: [0, 1.62, 0], explodeVector: [0, 0, 0], explodeOrder: 1, housing: true,
+        geo: comp(...[-1.6, 1.6].flatMap((x) => [-1.5, 1.5].map((z) => at({ kind: "extrude", outline: [[-0.06, -0.06], [0.06, -0.06], [0.06, 0.06], [-0.06, 0.06]], depth: 2.66, bevel: 0.015 }, [x, 1.33, z], [PI / 2, 0, 0])))),
+        description: "Folded-steel corner posts that carry the guarding panels and the roof." }),
+      c({ id: "CNC.window", name: "Side inspection window", category: "structural", mat: "glass", parent: "CNC.sideL", pos: [-0.03, 0.25, 0], explodeVector: [-0.3, 0, 0], explodeOrder: 0, housing: true,
+        geo: comp(at(rb(0.015, 0.55, 1.1, 0.006)), ...[-0.29, 0.29].map((y) => at(rb(0.03, 0.03, 1.16, 0.008), [0, y, 0])), ...[-0.57, 0.57].map((z) => at(rb(0.03, 0.6, 0.03, 0.008), [0, 0, z]))),
+        material: "Polycarbonate 8 mm in rubber gasket frame" }),
+      c({ id: "CNC.vents", name: "Electrical cabinet louvres", category: "structural", mat: "graphite", parent: "CNC.sideR", pos: [0.035, -0.45, -0.8], rot: [0, PI / 2, 0], explodeVector: [0.3, 0, 0], explodeOrder: 0,
+        geo: comp(at(louvres(0.7, 9)), at(rb(0.76, 0.42, 0.012, 0.006), [0, 0.04, -0.012])) }),
+      c({ id: "CNC.duct", name: "Top cable duct & chip-conveyor motor lead", category: "electrical", mat: "rubber", pos: [0, 0, 0], explodeVector: [0, 0.8, -0.5], explodeOrder: 0,
+        geo: comp(at(rb(0.12, 0.08, 2.6, 0.02), [1.3, 3.03, 0]), at(hose([[1.3, 3.0, -1.3], [1.55, 2.7, -1.5], [1.75, 1.0, -1.55], [1.8, 0.3, -1.4]], 0.02, true))) }),
       c({ id: "CNC.plate", name: "Machine nameplate (CE)", category: "structural", mat: "nameplate", parent: "CNC.front", pos: [0.35, -0.62, 0.03], explodeVector: [0, 0, 0.2], explodeOrder: 0, geo: decal(0.3, 0.15) }),
       c({ id: "CNC.warn", name: "Warning label ISO 7010 W001", category: "structural", mat: "warnLabel", parent: "CNC.front", pos: [-0.45, 0.55, 0.03], explodeVector: [0, 0, 0.2], explodeOrder: 0, geo: decal(0.16, 0.16) }),
       c({ id: "CNC.tower", name: "Signal tower", category: "electrical", mat: "ledGreen", pos: [1.4, 3.35, -1.3], explodeVector: [0, 0.6, 0], explodeOrder: 0, geo: stackLight }),
@@ -246,7 +258,12 @@ export const cnc: MachineDef = {
       c({ id: "CNC.pump", name: "Coolant pump", category: "electrical", mat: "paintGreen", pos: [1.25, 0.25, 2.05], explodeVector: [0.6, 0, 0.6], explodeOrder: 1,
         geo: comp(at(motorS(0.09, 0.26), [0, 0.3, 0]), at(lathe([[0, 0], [0.1, 0], [0.12, 0.08], [0.06, 0.12], [0, 0.12]]), [0, 0.1, 0])),
         telemetry: (rt) => ({ pressure: fmt((rt.act.pressure ?? 0) * (1 - (rt.phase.heat ?? 0) * 0.8), "bar"), flow: fmt((rt.act.pressure ?? 0) * 0.9, "l/min") }) }),
-      c({ id: "CNC.tank", name: "Coolant tank 400 l", category: "mechanical", mat: "sheetGrey", pos: [1.05, 0.25, 2.05], explodeVector: [0.5, -0.2, 0.9], explodeOrder: 2, geo: rb(1.1, 0.5, 0.6, 0.03) }),
+      c({ id: "CNC.tank", name: "Coolant tank 400 l", category: "mechanical", mat: "sheetGrey", pos: [1.05, 0.25, 2.05], explodeVector: [0.5, -0.2, 0.9], explodeOrder: 2,
+        geo: comp(at(panel(1.1, 0.5, 0.6)), at(rb(1.14, 0.03, 0.64, 0.01), [0, 0.26, 0]),                                     // welded tank + rim
+          at(rb(0.36, 0.02, 0.3, 0.008), [-0.3, 0.28, 0]), ...[-0.42, -0.18].map((x) => at(cy(0.012, 0.03), [x, 0.29, 0.12])),  // inspection lid + bolts
+          at(rb(0.03, 0.3, 0.02, 0.006), [0.4, 0, 0.31]), at(rb(0.02, 0.18, 0.012, 0.004), [0.4, -0.02, 0.32]),                 // level gauge frame + window
+          at(cy(0.02, 0.06), [-0.5, -0.18, 0.3], X), ...[-0.45, 0.45].flatMap((x) => [-0.25, 0.25].map((z) => at(cy(0.04, 0.05), [x, -0.27, z])))),   // drain valve, castors
+        description: "Welded steel coolant tank with chip baffles, level gauge, inspection lid, drain and castors." }),
       c({ id: "CNC.auger", name: "Chip auger conveyor", category: "mechanical", mat: "steel", pos: [-0.85, 0.5, 2.05], rot: [0, 0, 0.3], explodeVector: [-0.6, 0, 0.9], explodeOrder: 2,
         geo: comp(at({ kind: "helix", r: 0.09, pitch: 0.12, turns: 12, wire: 0.012 }, [0, 0, 0], X), at(cy(0.02, 1.5), [0, 0, 0], X), at(rb(1.6, 0.04, 0.24, 0.01), [0, -0.12, 0])) }),
     ] },

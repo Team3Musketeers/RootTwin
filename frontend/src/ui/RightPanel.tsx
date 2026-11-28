@@ -1,6 +1,7 @@
 // Right panel: context-aware Controls (line vs machine), Exploded view / BOM, Diagnostics; component learning card.
 import { useState } from "react";
 import { api } from "../api";
+import type { Action } from "../services/floor";
 import { liveComponents } from "../services/productionBridge";
 import { MACHINE, allParts, partById } from "../twin/registry";
 import type { TwinSim } from "../twin/sim";
@@ -21,7 +22,7 @@ function defaultTelemetry(p: Part, rt: MachineRuntime, fault?: Fault): Record<st
   }
 }
 
-export function PartCard({ sim, part, onLocate }: { sim: TwinSim; part: Part; onLocate: () => void }) {
+export function PartCard({ sim, part, onLocate, onRepair }: { sim: TwinSim; part: Part; onLocate: () => void; onRepair?: (f: Fault) => void }) {
   const m = Object.values(MACHINE).find((x) => allParts(x).includes(part))!;
   const rt = sim.rt[m.id], fault = sim.partFault(part.id);
   const live = liveComponents.get(part.id);             // backend component telemetry wins when connected
@@ -48,7 +49,8 @@ export function PartCard({ sim, part, onLocate }: { sim: TwinSim; part: Part; on
         </div>
         <Btn c="ghost" onClick={onLocate} title="Frame this part in 3D">⌖</Btn>
       </div>
-      {fault && <div className="mt-2 rounded bg-red-600/25 px-2 py-1 text-red-200">⚠ {fault.id} · {fault.label} ({fault.severity})</div>}
+      {fault && <div className="mt-2 flex items-center gap-2 rounded bg-red-600/25 px-2 py-1 text-red-200"><span className="flex-1">⚠ {fault.id} · {fault.label} ({fault.severity})</span>
+        {onRepair && <Btn c="amber" onClick={() => onRepair(fault)} disabled={!!sim.repairs[fault.id]}>{sim.repairs[fault.id] ? `🔧 ${sim.repairs[fault.id].left.toFixed(1)} s` : "🔧 Repair"}</Btn>}</div>}
       {part.description && <p className="mt-2 text-slate-300">{part.description}</p>}
       <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-mono text-[11px] tabular-nums">
         {Object.entries(tele).map(([k, v]) => (<div key={k} className="contents"><dt className="text-slate-500">{k}</dt><dd className="text-slate-100">{v}</dd></div>))}
@@ -67,22 +69,23 @@ interface Props {
   setExplode: (e: number) => void; guides: boolean; xray: boolean; toggleXray: () => void; labels: boolean; toggleGuides: () => void; toggleLabels: () => void;
   onIsolate: () => void; onExploded: () => void; onPart: (id: string) => void; onLocate: (f: Fault) => void; onFramePart: () => void;
   onInject: (machineId: string, code: string) => void; onClear: (f: Fault) => void; animateAssembly: () => void; reset: () => void;
+  act: (a: Action) => void; me: string; onRepair: (f: Fault) => void; onClaim: (machineId: string) => void;
 }
 
-function LineControls({ sim, reset }: { sim: TwinSim; reset: () => void }) {
+function LineControls({ sim, reset, act }: { sim: TwinSim; reset: () => void; act: (a: Action) => void }) {
   const st = sim.line.state;
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-3 gap-1.5">
-        <Btn c="green" onClick={() => sim.setLine("RUNNING")} disabled={st === "RUNNING"}>▶ Start line</Btn>
-        <Btn onClick={() => sim.setLine("PAUSED")} disabled={st !== "RUNNING"}>⏸ Pause</Btn>
-        <Btn c="red" onClick={() => sim.setLine("ESTOP")} className="font-bold">E-STOP</Btn>
-        <Btn c="amber" onClick={() => sim.resetEstop()} disabled={st !== "ESTOP"}>Reset E-stop</Btn>
+        <Btn c="green" onClick={() => act({ m: "line", state: "RUNNING" })} disabled={st === "RUNNING"}>▶ Start line</Btn>
+        <Btn onClick={() => act({ m: "line", state: "PAUSED" })} disabled={st !== "RUNNING"}>⏸ Pause</Btn>
+        <Btn c="red" onClick={() => act({ m: "estop" })} className="font-bold">E-STOP</Btn>
+        <Btn c="amber" onClick={() => act({ m: "reset", id: "PLC" })} disabled={st !== "ESTOP"}>Reset E-stop</Btn>
         <Btn onClick={() => sim.stepCycle()} disabled={st === "RUNNING" || st === "ESTOP"}>⏭ Step</Btn>
         <Btn c="ghost" onClick={reset}>↺ Reset sim</Btn>
       </div>
       <ValueControl label="Master line speed / throughput" unit="%" min={0} max={150} step={1} value={sim.line.speedPct} onChange={(v) => { sim.line.speedPct = v; }} />
-      <ValueControl label="Conveyor belt speed" unit="m/s" min={0} max={1.2} step={0.01} value={sim.rt.CNV.set.speed} actual={sim.rt.CNV.act.speed} onChange={(v) => sim.setValue("CNV", "speed", v)} />
+      <ValueControl label="Conveyor belt speed" unit="m/s" min={0} max={1.2} step={0.01} value={sim.rt.CNV.set.speed} actual={sim.rt.CNV.act.speed} onChange={(v) => act({ m: "set", id: "CNV", key: "speed", v })} />
       <ValueControl label="AGV fleet speed" unit="m/s" min={0} max={2} step={0.05} value={sim.rt.AGV1.set.speed} onChange={(v) => sim.setFleetSpeed(v)} />
       <ValueControl label="Workpiece spawn interval" unit="s" min={2} max={30} step={0.5} value={sim.line.spawnInterval} onChange={(v) => { sim.line.spawnInterval = v; }} />
       <ValueControl label="Ambient factory lighting" unit="×" min={0.2} max={2} step={0.05} value={sim.line.lighting} onChange={(v) => { sim.line.lighting = v; }} />
@@ -99,17 +102,24 @@ function LineControls({ sim, reset }: { sim: TwinSim; reset: () => void }) {
   );
 }
 
-function MachineControls({ sim, id, explode, setExplode, onIsolate, onExploded, onXray }: { sim: TwinSim; id: string; explode: number; setExplode: (e: number) => void; onIsolate: () => void; onExploded: () => void; onXray: () => void }) {
-  const m = MACHINE[id], rt = sim.rt[id];
+function MachineControls({ sim, id, explode, setExplode, onIsolate, onExploded, onXray, act, me, onClaim }: { sim: TwinSim; id: string; explode: number; setExplode: (e: number) => void; onIsolate: () => void; onExploded: () => void; onXray: () => void; act: (a: Action) => void; me: string; onClaim: (id: string) => void }) {
+  const m = MACHINE[id], rt = sim.rt[id], owner = sim.owner[id], locked = !!owner && owner !== me;
   return (
     <div className="space-y-3">
       <div className="text-[11px] text-slate-400">{m.description}</div>
       <div className="flex items-center gap-2 text-xs">Status <b className={`rounded px-1.5 tabular-nums ${rt.status === "FAULT" ? "bg-red-600" : rt.status === "RUN" ? "bg-emerald-700" : "bg-slate-700"}`}>{rt.status}</b>
         {rt.manual && <span className="rounded bg-amber-500/20 px-1.5 text-amber-300">manual</span>}<span className="ml-auto tabular-nums text-slate-400">cycles {rt.cycles}</span></div>
+      <div className="flex items-center gap-2 rounded bg-slate-800/60 px-2 py-1 text-[11px]">
+        <span className="flex-1">{owner ? <>Operated by <b className="text-sky-300">{owner}</b></> : <span className="text-slate-400">Unclaimed - runs its automatic cycle</span>}</span>
+        <Btn c={owner === me ? "ghost" : "sky"} onClick={() => onClaim(id)} disabled={locked}>{owner === me ? "Release" : "Take control"}</Btn>
+      </div>
+      <fieldset disabled={locked} className="space-y-3 disabled:opacity-50">
       <div className="grid grid-cols-3 gap-1.5">
-        <Btn c="green" onClick={() => sim.setMachine(id, "RUN")}>▶ Run</Btn>
-        <Btn onClick={() => sim.setMachine(id, "HOLD")}>⏸ Hold</Btn>
-        <Btn c="red" onClick={() => sim.setMachine(id, "STOP")}>■ Stop</Btn>
+        <Btn c="green" onClick={() => act({ m: "start", id })}>▶ Start</Btn>
+        <Btn onClick={() => act({ m: "stop", id })}>⏸ Stop</Btn>
+        <Btn c="red" onClick={() => act({ m: "estop", id })} className="font-bold">E-STOP</Btn>
+        <Btn c="sky" onClick={() => act({ m: "reset", id })}>↺ Reset</Btn>
+        <Btn onClick={() => act({ m: "mode", id })}>{rt.manual ? "→ AUTO" : "→ MANUAL"}</Btn>
         <Btn onClick={() => sim.home(id)}>⌂ Home axes</Btn>
         <Btn onClick={() => sim.stepCycle(id)}>⏭ Step cycle</Btn>
         <Btn c="sky" onClick={onIsolate}>◎ Isolate</Btn>
@@ -117,8 +127,10 @@ function MachineControls({ sim, id, explode, setExplode, onIsolate, onExploded, 
       <Btn c="amber" className="w-full" onClick={onExploded}>✳ Toggle exploded view (vue éclatée)</Btn>
       <Btn c="ghost" className="w-full" onClick={onXray}>⌗ X-ray / cutaway (X)</Btn>
       {m.controls.map((c) => (
-        <ValueControl key={c.key} label={c.label} unit={c.unit} min={c.min} max={c.max} step={c.step} value={rt.set[c.key] ?? 0} actual={rt.act[c.key]} onChange={(v) => sim.setValue(id, c.key, v)} />
+        <ValueControl key={c.key} label={`${c.label}${!/J\d$/.test(c.key) && c.key !== "grip" ? ` (safe ≤ ${+(c.min + 0.9 * (c.max - c.min)).toFixed(2)})` : ""}`} unit={c.unit} min={c.min} max={c.max} step={c.step}
+                      value={rt.set[c.key] ?? 0} actual={rt.act[c.key]} onChange={(v) => act({ m: "set", id, key: c.key, v })} />
       ))}
+      </fieldset>
       <ValueControl label="Explode factor" unit="%" min={0} max={100} step={1} value={Math.round(explode * 100)} onChange={(v) => setExplode(v / 100)} />
     </div>
   );
@@ -164,6 +176,7 @@ function Diagnostics(p: Props) {
     <div className="space-y-3 text-[12px]">
       <section>
         <h4 className="mb-1 text-[11px] uppercase tracking-wide text-slate-500">Active faults ({p.sim.faults.length})</h4>
+        {p.sim.interlock() && <p className="mb-1.5 rounded bg-red-600/30 px-2 py-1 text-red-100">⛔ Line interlock: an operator mistake damaged a part. Repair the red component, then press Start.</p>}
         {p.sim.faults.length === 0 && <p className="text-slate-500">No active fault.</p>}
         {p.sim.faults.map((f) => (
           <div key={f.id} className={`mb-1.5 rounded border p-2 ${f.severity === "critical" ? "border-red-500/60 bg-red-950/40" : "border-amber-400/50 bg-amber-950/30"} ${f.acknowledged ? "opacity-70" : ""}`}>
@@ -174,6 +187,7 @@ function Diagnostics(p: Props) {
             <div className="mt-1 flex gap-1.5">
               <Btn c="sky" onClick={() => p.onLocate(f)}>⌖ Locate & explode</Btn>
               <Btn onClick={() => p.sim.acknowledge(f.id)} disabled={f.acknowledged}>Acknowledge</Btn>
+              <Btn c="amber" onClick={() => p.onRepair(f)} disabled={!!p.sim.repairs[f.id]}>{p.sim.repairs[f.id] ? `🔧 ${p.sim.repairs[f.id].left.toFixed(1)} s` : "🔧 Repair"}</Btn>
               <Btn c="green" onClick={() => p.onClear(f)}>Clear</Btn>
             </div>
           </div>
@@ -215,11 +229,11 @@ export function RightPanel(p: Props) {
           </button>))}
       </div>
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-2.5">
-        {part && <PartCard sim={p.sim} part={part} onLocate={p.onFramePart} />}
+        {part && <PartCard sim={p.sim} part={part} onLocate={p.onFramePart} onRepair={p.onRepair} />}
         <div className="text-xs font-semibold text-slate-300">{p.tab === "controls" ? (p.machine ? MACHINE[p.machine].name : "Whole production line") : ""}</div>
         {p.tab === "controls" && (p.machine
-          ? <MachineControls sim={p.sim} id={p.machine} explode={p.explode} setExplode={p.setExplode} onIsolate={p.onIsolate} onExploded={p.onExploded} onXray={p.toggleXray} />
-          : <LineControls sim={p.sim} reset={p.reset} />)}
+          ? <MachineControls sim={p.sim} id={p.machine} explode={p.explode} setExplode={p.setExplode} onIsolate={p.onIsolate} onExploded={p.onExploded} onXray={p.toggleXray} act={p.act} me={p.me} onClaim={p.onClaim} />
+          : <LineControls sim={p.sim} reset={p.reset} act={p.act} />)}
         {p.tab === "exploded" && <Exploded {...p} />}
         {p.tab === "diagnostics" && <Diagnostics {...p} />}
       </div>

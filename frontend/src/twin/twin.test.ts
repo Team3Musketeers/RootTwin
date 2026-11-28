@@ -77,6 +77,23 @@ describe("TwinSim", () => {
     expect(s.wps.some((w) => w.done.has("PRS"))).toBe(true);
   });
 
+  it("operator overload damages a part, trips the line interlock, repair + Start resumes", () => {
+    const s = new TwinSim();
+    s.setValue("CNC", "rpm", 11800);                  // > 90 % of 12 000 rpm
+    for (let i = 0; i < 60; i++) s.tick(0.1);
+    const f = s.interlock()!;
+    expect(f.partId).toBe("CNC.spbrg");
+    expect(s.line.state).toBe("STOPPED");
+    s.setLine("RUNNING");
+    expect(s.line.state).toBe("STOPPED");            // wrong sequence: refused while the red part is not repaired
+    s.setValue("CNC", "rpm", 8000);
+    s.startRepair(f.id, "tester");
+    for (let i = 0; i < 50; i++) s.tick(0.1);
+    expect(s.faults).toHaveLength(0);
+    s.setLine("RUNNING");
+    expect(s.line.state).toBe("RUNNING");
+  });
+
   it("E-stop freezes everything until reset", () => {
     const s = new TwinSim();
     run(s, 30);

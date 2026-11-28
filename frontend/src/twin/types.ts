@@ -109,7 +109,7 @@ export interface Fault {
   label: string;
   severity: Severity;
   t: number;
-  source: "local" | "backend";
+  source: "local" | "backend" | "player";       // player = caused by an operator mistake (trips the line interlock)
   acknowledged: boolean;
 }
 

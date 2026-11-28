@@ -1,6 +1,6 @@
 // Generic renderer: any MachineDef -> kinematic CAD part tree with live motion, staggered exploded view, X-ray cutaway,
 // isolation ghosting, selection/hover highlight, emissive crimson faulty parts, CAD axis guides, leader-line callouts, beacon.
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { Suspense, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { Html, Line } from "@react-three/drei";
 import * as THREE from "three";
@@ -9,6 +9,7 @@ import type { MachineDef, Part } from "../twin/types";
 import { geometryFor } from "./cad";
 import { objects, useView } from "./context";
 import { isEmissivePreset, makeMaterial } from "./materials";
+import { glbKey, useGlbParts, useModelUrl } from "./models";
 
 const noRaycast = () => undefined;              // ghosted machines are not clickable
 const CRIMSON = new THREE.Color("#ff0a1e"), AMBER = new THREE.Color("#ff6a00"), CYAN = new THREE.Color("#38bdf8"), XRAY = new THREE.Color("#7dd3fc"), GHOST = new THREE.Color("#94a3b8");
@@ -21,14 +22,15 @@ function tree(parts: Part[]): Node[] {
   return roots;
 }
 
-function PartNode({ node, def, maxOrder, explodeRef }: { node: Node; def: MachineDef; maxOrder: number; explodeRef: { current: number } }) {
+type Glb = Map<string, THREE.BufferGeometry> | null;
+function PartNode({ node, def, maxOrder, explodeRef, glb }: { node: Node; def: MachineDef; maxOrder: number; explodeRef: { current: number }; glb: Glb }) {
   const v = useView();
   const p = node.part;
   const group = useRef<THREE.Group>(null);
   const guide = useRef<any>(null);
   const leader = useRef<any>(null);
   const label = useRef<HTMLDivElement>(null);
-  const geometry = useMemo(() => geometryFor(p.geo), [p.geo]);
+  const geometry = useMemo(() => glb?.get(glbKey(p.id)) ?? geometryFor(p.geo), [p.geo, p.id, glb]);   // real CAD mesh when provided
   const mat = useMemo(() => makeMaterial(p.mat, p.color), [p.mat, p.color]);
   useEffect(() => () => mat.dispose(), [mat]);
   useEffect(() => { if (group.current) objects.set(p.id, group.current); return () => { objects.delete(p.id); }; }, [p.id]);
@@ -109,7 +111,7 @@ function PartNode({ node, def, maxOrder, explodeRef }: { node: Node; def: Machin
             </Html>
           </>
         )}
-        {node.children.map((c) => <PartNode key={c.part.id} node={c} def={def} maxOrder={maxOrder} explodeRef={explodeRef} />)}
+        {node.children.map((c) => <PartNode key={c.part.id} node={c} def={def} maxOrder={maxOrder} explodeRef={explodeRef} glb={glb} />)}
       </group>
       {mine && <Line ref={guide} points={[[0, 0, 0], [0, 0, 0]]} color="#22d3ee" dashed dashSize={0.06} gapSize={0.04} lineWidth={1.2} visible={false} />}
     </>
@@ -145,12 +147,18 @@ function Beacon({ def }: { def: MachineDef }) {
   );
 }
 
+function GlbParts({ url, children }: { url: string; children: (glb: Glb) => ReactNode }) {
+  return <>{children(useGlbParts(url))}</>;
+}
+
 export function MachineView({ def, children, groupRef }: { def: MachineDef; children?: ReactNode; groupRef?: (g: THREE.Group | null) => void }) {
   const v = useView();
   const roots = useMemo(() => tree(def.subAssemblies.flatMap((s) => s.parts)), [def]);
   const maxOrder = useMemo(() => Math.max(...def.subAssemblies.flatMap((s) => s.parts.map((p) => p.explodeOrder))), [def]);
   const explodeRef = useRef(0);
   const group = useRef<THREE.Group>(null);
+  const url = useModelUrl(def.id);
+  const parts = (glb: Glb) => roots.map((n) => <PartNode key={n.part.id} node={n} def={def} maxOrder={maxOrder} explodeRef={explodeRef} glb={glb} />);
   useEffect(() => { if (group.current) objects.set(def.id, group.current); return () => { objects.delete(def.id); }; }, [def.id]);
   useFrame((_, dt) => {
     const target = v.machine === def.id && v.mode === "exploded" ? v.explode : 0;
@@ -159,7 +167,9 @@ export function MachineView({ def, children, groupRef }: { def: MachineDef; chil
   return (
     <group ref={(g) => { (group as { current: THREE.Group | null }).current = g; groupRef?.(g); }}
            position={def.position} rotation={[0, def.rotation ?? 0, 0]}>
-      {roots.map((n) => <PartNode key={n.part.id} node={n} def={def} maxOrder={maxOrder} explodeRef={explodeRef} />)}
+      {url
+        ? <Suspense fallback={parts(null)}><GlbParts url={url}>{parts}</GlbParts></Suspense>
+        : parts(null)}
       {def.id !== "CNV" && def.type !== "agv" && <Beacon def={def} />}
       {children}
     </group>

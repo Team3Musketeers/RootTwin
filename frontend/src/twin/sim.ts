@@ -4,7 +4,7 @@ import { armIK } from "./kinematics";
 import { AGV_PATH, AGV_STOPS, BELT_Y, LINE_X0, ST, STOPS } from "./layout";
 import { PAL_BASE, PAL_PALLET, PAL_PICK, PAL_SCALE, WELD_BASE } from "./machines/cells";
 import { SEGMENTS } from "./machines/line";
-import { AGV_IDS, MACHINE, MACHINES, allParts } from "./registry";
+import { AGV_IDS, MACHINE, MACHINES, allParts, partById } from "./registry";
 import type { Fault, LineState, MachineRuntime, TwinEvent, V3 } from "./types";
 
 export type WpKind = "raw" | "machined" | "pressed" | "welded";
@@ -55,6 +55,13 @@ const weldPose = (robot: "A" | "B", x: number, lift = 0): Pose => {
 };
 const palPose = (p: V3, lift = 0): Pose => armIK([p[0] - PAL_BASE[0], p[1] + lift, p[2] - PAL_BASE[2]], undefined, PAL_SCALE);
 
+// which component an overloaded setpoint damages (first matching fault code of that machine)
+const OVERLOAD: Record<string, RegExp> = {
+  rpm: /SPBRG|INBRG|J1/, temp: /SPMOT|MOTOR|PSU|FAN|J2|J3/, current: /MOTOR|DRIVE|OC|J3|J2/, force: /GEAR|SEAL/, pressure: /SEAL|LEAK|COOL|PSENS/,
+  speed: /DRIVE|MOTOR|OC|DIVERT|PUSH/, load: /DRIVE|MOTOR|J2|J1|PUSH/, voltage: /PSU|BATT|VFD/, toolSpeed: /J2|J3|J1/, power: /TIP|PSU/,
+};
+const partOf = (partId: string) => partById(partId)?.name ?? partId;
+
 export class TwinSim {
   t = 0;
   line = { state: "RUNNING" as LineState, speedPct: 100, spawnInterval: 7, ghost: 0.08, lighting: 1 };
@@ -74,6 +81,8 @@ export class TwinSim {
   private palStep = -1;
   private palWp: number | null = null;
   private faultSeq = 1;
+  owner: Record<string, string> = {};             // machine id -> player who claimed it (unclaimed machines run their automatic cycle)
+  repairs: Record<string, { by: string; left: number }> = {};   // fault id -> repair in progress
 
   constructor() {
     for (const m of MACHINES) {
@@ -89,8 +98,12 @@ export class TwinSim {
 
   // ------------------------------------------------------------ commands
   log(level: TwinEvent["level"], text: string) { this.events.unshift({ t: this.t, level, text }); if (this.events.length > 150) this.events.pop(); }
+  /** A critical fault caused by an operator mistake trips the line safety interlock until the part is repaired. */
+  interlock() { return this.faults.find((f) => f.source === "player" && f.severity === "critical"); }
   setLine(state: LineState) {
     if (this.line.state === "ESTOP" && state !== "STOPPED") { this.log("warning", "Reset the E-stop first"); return; }
+    const il = this.interlock();
+    if (il && state === "RUNNING") { this.log("warning", `Wrong sequence: line interlock - repair ${partOf(il.partId)} on ${MACHINE[il.machineId].name} first`); return; }
     this.line.state = state;
     this.log(state === "ESTOP" ? "fault" : "info", state === "ESTOP" ? "EMERGENCY STOP pressed - all motion stopped" : `Line ${state.toLowerCase()}`);
   }
@@ -128,6 +141,18 @@ export class TwinSim {
     this.log("info", `Scenario: ${name}`);
   }
 
+  /** Start a timed repair (LOTO, replace, test) of a faulty part; the fault clears when it is done. */
+  startRepair(faultId: string, by = "technician", seconds = 4) {
+    const f = this.faults.find((x) => x.id === faultId);
+    if (!f || this.repairs[faultId]) return;
+    this.repairs[faultId] = { by, left: seconds };
+    this.log("info", `${by}: LOTO + repairing ${partOf(f.partId)} (${MACHINE[f.machineId].name})`);
+  }
+  claim(machineId: string, player: string | null) {
+    if (player) this.owner[machineId] = player; else delete this.owner[machineId];
+    this.log("info", player ? `${player} took control of ${MACHINE[machineId].name}` : `${MACHINE[machineId].name} back to automatic`);
+  }
+
   injectFault(machineId: string, code: string, source: Fault["source"] = "local", label?: string): Fault | null {
     const spec = MACHINE[machineId]?.faults.find((f) => f.code === code);
     if (!spec || this.faults.some((f) => f.machineId === machineId && f.code === code)) return null;
@@ -135,6 +160,10 @@ export class TwinSim {
       severity: spec.severity, t: this.t, source, acknowledged: false };
     this.faults.unshift(f);
     if (f.severity === "critical") this.rt[machineId].status = "FAULT";
+    if (source === "player" && f.severity === "critical" && this.line.state === "RUNNING") {
+      this.line.state = "STOPPED";                              // safety interlock: the whole line stops (IEC 60204-1 stop cat. 1)
+      this.log("fault", `LINE STOP - interlock tripped by ${MACHINE[machineId].name}`);
+    }
     this.applyFaultEffects();
     this.log("fault", `${f.id} ${MACHINE[machineId].name}: ${f.label}`);
     return f;
@@ -143,6 +172,7 @@ export class TwinSim {
     const f = this.faults.find((x) => x.id === id);
     if (!f) return;
     this.faults = this.faults.filter((x) => x.id !== id);
+    delete this.repairs[id];
     if (!this.faults.some((x) => x.machineId === f.machineId && x.severity === "critical")) {
       if (this.rt[f.machineId].status === "FAULT") this.rt[f.machineId].status = "RUN";
     }
@@ -202,6 +232,7 @@ export class TwinSim {
     const k = this.line.speedPct / 100;
     if (this.line.state === "RUNNING" && !this.plcDown()) this.stats.runTime += dt * (this.faults.some((f) => f.severity === "critical") ? 0 : 1);
     this.actuals(dt, estop);
+    this.operatorRules(dt);
     if (!estop) {
       this.dispense(dt, k);
       this.conveyor(dt, k);
@@ -214,6 +245,27 @@ export class TwinSim {
   }
 
   // actual values smoothly follow setpoints; spinning parts integrate their angle
+  /** Overload above 90 % of a setpoint range for 4 s damages the matching component; timed repairs progress. */
+  private operatorRules(dt: number) {
+    for (const m of MACHINES) {
+      const r = this.rt[m.id];
+      for (const c of m.controls) {
+        const rule = OVERLOAD[c.key];
+        if (!rule) continue;
+        const over = this.running(m.id) && (r.set[c.key] ?? 0) >= c.min + 0.9 * (c.max - c.min);
+        const k = `over_${c.key}`;
+        r.phase[k] = over ? (r.phase[k] ?? 0) + dt : 0;
+        if (r.phase[k] > 4) {
+          r.phase[k] = 0;
+          const free = m.faults.filter((f) => !this.faults.some((x) => x.machineId === m.id && x.code === f.code));
+          const spec = free.find((f) => rule.test(f.code)) ?? free.find((f) => f.severity === "critical");   // every overload has a consequence
+          if (spec) this.injectFault(m.id, spec.code, "player", `${spec.label} - ${c.label} over safe limit`);
+        }
+      }
+    }
+    for (const [id, rp] of Object.entries(this.repairs)) if ((rp.left -= dt) <= 0) this.clearFault(id);
+  }
+
   private actuals(dt: number, estop: boolean) {
     for (const m of MACHINES) {
       const r = this.rt[m.id], on = !estop && this.running(m.id) || (m.type === "agv" && !estop && r.status === "RUN");

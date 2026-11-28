@@ -9,6 +9,7 @@
 - POST /command/{line}/{target}, GET /command/catalog, GET /command/faults   (T33 relay)
 - /play/...                Play mode (T27)
 - WS   /ws                 pushes {"type": "snapshot"|"event", "data": ...} in real time
+- WS   /ws/floor           multiplayer floor: worker avatars, machine claims, shared operator actions
 - GET  /                   the built front-end (frontend/dist) when present
 """
 from __future__ import annotations
@@ -184,6 +185,10 @@ async def ws(socket: WebSocket):
 from roottwin.play import router as play_router  # noqa: E402  (after app: avoids a heavy import cycle)
 
 app.include_router(play_router)
+
+from roottwin.floor import router as floor_router  # noqa: E402
+
+app.include_router(floor_router)
 
 if DIST.exists():
     app.mount("/", StaticFiles(directory=DIST, html=True), name="frontend")

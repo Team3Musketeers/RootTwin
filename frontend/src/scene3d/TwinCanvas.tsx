@@ -9,7 +9,9 @@ import { MACHINES } from "../twin/registry";
 import { objects, ViewContext, type ViewState } from "./context";
 import { Flow } from "./Flow";
 import { Hall } from "./Hall";
+import { ControlStation } from "./ControlStation";
 import { MachineView } from "./MachineView";
+import { Workers } from "./Worker";
 
 export type CameraPreset = "overview" | "logistics" | "machining" | "assembly" | "packaging" | "control";
 export const CAMERA_PRESETS: Record<CameraPreset, { label: string; pos: [number, number, number]; target: [number, number, number] }> = {
@@ -66,7 +68,9 @@ export function TwinCanvas({ view }: { view: ViewState }) {
         </Suspense>
         <Hall quality={view.quality} structures={structures} />
         <ContactShadows position={[-3, 0.005, 0]} scale={[80, 30]} resolution={1024} blur={2.2} opacity={0.65} far={4} frames={1} color="#000814" />
-        {MACHINES.filter((m) => m.type !== "agv").map((m) => <MachineView key={m.id} def={m} />)}
+        {MACHINES.filter((m) => m.type !== "agv").map((m) => (
+          <MachineView key={m.id} def={m}>{m.id !== "CNV" && (view.mode === "factory" || view.machine === m.id) && <ControlStation def={m} />}</MachineView>))}
+        <Workers />
         <Flow />
         <Ticker v={view} />
         <CameraControls ref={(c) => { cameraApi.controls = c; }} maxPolarAngle={Math.PI / 2.05} minDistance={1.5} maxDistance={120} smoothTime={0.45} />

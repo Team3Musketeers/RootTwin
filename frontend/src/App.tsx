@@ -4,8 +4,10 @@ import { useLive } from "./api";
 import Play from "./Play";
 import { CAMERA_PRESETS, cameraApi, TwinCanvas, type CameraPreset } from "./scene3d/TwinCanvas";
 import type { ViewMode, ViewState } from "./scene3d/context";
+import { FloorClient, type Action } from "./services/floor";
 import { pushFault, useBackendSync } from "./services/productionBridge";
-import { MACHINE, machineOfPart } from "./twin/registry";
+import { HAT, player } from "./scene3d/Worker";
+import { MACHINE, MACHINES, machineOfPart } from "./twin/registry";
 import { TwinSim } from "./twin/sim";
 import type { Fault } from "./twin/types";
 import { Hierarchy } from "./ui/Hierarchy";
@@ -32,6 +34,13 @@ export default function App() {
   const [guides, setGuides] = useState(true);
   const [labels, setLabels] = useState(true);
   const [xray, setXray] = useState(false);
+  const [walk, setWalk] = useState(false);
+  const [floorV, setFloorV] = useState(0);
+  const floorRef = useRef<FloorClient | null>(null);
+  if (!floorRef.current) floorRef.current = new FloorClient(() => simRef.current, () => setFloorV((x) => x + 1));
+  const floor = floorRef.current;
+  const act = useCallback((a: Action) => floor.act(a), [floor]);
+  const [who, setWho] = useState({ name: "", role: "technician" });
   const [quality, setQuality] = useState(true);
   const [tab, setTab] = useState<Tab>("controls");
   const [left, setLeft] = useState(() => window.innerWidth > 1350);      // keep 75-80 % of the screen for the 3D view
@@ -65,8 +74,27 @@ export default function App() {
     };
     anim.current = requestAnimationFrame(step);
   };
-  const inject = (mid: string, code: string) => { const f = sim.injectFault(mid, code); if (f) pushFault(mid, code, live.connected).catch(() => {}); };
-  const clear = (f: Fault) => { sim.clearFault(f.id); pushFault(f.machineId, f.code, live.connected, true).catch(() => {}); };
+  const inject = (mid: string, code: string) => { act({ m: "fault", id: mid, code }); pushFault(mid, code, live.connected).catch(() => {}); };
+  const clear = (f: Fault) => { act({ m: "clear", id: f.machineId, code: f.code }); pushFault(f.machineId, f.code, live.connected, true).catch(() => {}); };
+  const repair = (f: Fault) => act({ m: "repair", id: f.machineId, code: f.code, by: floor.myName });
+  /** Machine whose footprint is closest to the worker (within 3 m), for E (open) and C (take control). */
+  const nearest = () => {
+    let best: string | null = null, bd = 3;
+    for (const m of MACHINES) {
+      if (m.type === "agv" || m.id === "CNV") continue;
+      const dx = Math.max(0, Math.abs(player.x - m.position[0]) - m.size[0] / 2), dz = Math.max(0, Math.abs(player.z - m.position[2]) - m.size[2] / 2);
+      const d = Math.hypot(dx, dz);
+      if (d < bd) { bd = d; best = m.id; }
+    }
+    return best;
+  };
+  const toggleClaim = (id: string) => act({ m: "claim", id, who: sim.owner[id] === floor.myName ? null : floor.myName });
+  const toggleWalk = () => {
+    const on = !walk;
+    setWalk(on);
+    if (on) { setMode("factory"); setMachine(null); setPart(null); cameraApi.controls?.setLookAt(player.x - 3, 3.2, player.z + 5, player.x, 1.2, player.z, true); }
+    else cameraApi.preset(preset);
+  };
   const resetSim = () => { simRef.current = new TwinSim(); setMachine(null); setPart(null); setMode("factory"); };
   const changeMode = (m: ViewMode) => {
     if (m !== "factory" && !machine) return;
@@ -79,9 +107,12 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).closest?.("input, select, textarea")) return;
       const k = e.key.toLowerCase();
+      if (k === "p") { toggleWalk(); return; }
+      if (walk && k === "e") { const id = nearest(); if (id) { setMachine(id); setTab("controls"); setRight(true); } return; }
+      if (walk && k === "c") { const id = nearest(); if (id) toggleClaim(id); return; }
       if (k === " ") { e.preventDefault();
         if (machine) sim.setMachine(machine, sim.rt[machine].status === "RUN" ? "HOLD" : "RUN");
-        else sim.setLine(sim.line.state === "RUNNING" ? "PAUSED" : "RUNNING"); }
+        else act({ m: "line", state: sim.line.state === "RUNNING" ? "PAUSED" : "RUNNING" }); }
       else if (k === "e" && machine) changeMode(mode === "exploded" ? "isolate" : "exploded");
       else if (k === "i" && machine) changeMode(mode === "factory" ? "isolate" : "factory");
       else if (k === "f") { const f = sim.faults[0]; if (f) locate(f); else if (part) framePart(); else if (machine) cameraApi.fit(machine); }
@@ -95,8 +126,10 @@ export default function App() {
 
   const view: ViewState = useMemo(() => ({
     sim, mode, machine, part, hoverPart, explode, guides, xray, labels, quality,
-    selectMachine, selectPart, hover: setHover, isolate,
-  }), [sim, mode, machine, part, hoverPart, explode, guides, xray, labels, quality, selectMachine, selectPart, isolate]);
+    selectMachine, selectPart, hover: setHover, isolate, walk, floor, act,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- floorV: re-render scene consumers when players join/leave/claim
+  }), [sim, mode, machine, part, hoverPart, explode, guides, xray, labels, quality, selectMachine, selectPart, isolate, walk, floor, act, floorV]);
+  const near = walk ? nearest() : null;
 
   const health = sim.health(), k = sim.kpis(), crit = sim.faults.filter((f) => f.severity === "critical");
   const first = crit[0] ?? sim.faults[0];
@@ -122,6 +155,19 @@ export default function App() {
           </div>
           <button onClick={() => setXray(!xray)} aria-pressed={xray} title="X-ray / cutaway: housings turn to glass (X)"
                   className={`rounded border border-white/10 px-2 py-0.5 text-xs ${xray ? "bg-cyan-600" : "hover:bg-white/10"}`}>⌗ X-ray</button>
+          <button onClick={toggleWalk} aria-pressed={walk} title="Play as a factory worker: WASD to walk, Shift to run, E open machine, C take control (P)"
+                  className={`rounded border border-white/10 px-2 py-0.5 text-xs ${walk ? "bg-amber-500 text-slate-950" : "hover:bg-white/10"}`}>🦺 Worker mode</button>
+          {floor.connected
+            ? <span className="flex items-center gap-1 text-[11px] text-slate-300"><span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: HAT[floor.me?.role ?? "operator"] }} />
+                {floor.me?.name} · {floor.players.size + 1} on the floor</span>
+            : <form className="flex items-center gap-1 text-xs" onSubmit={(e) => { e.preventDefault(); floor.join(who.name || "Worker", who.role); }}>
+                <input value={who.name} onChange={(e) => setWho({ ...who, name: e.target.value })} placeholder="your name" maxLength={24} aria-label="Player name"
+                       className="w-24 rounded border border-white/10 bg-slate-900 px-1.5 py-0.5" />
+                <select value={who.role} onChange={(e) => setWho({ ...who, role: e.target.value })} aria-label="Role" className="rounded border border-white/10 bg-slate-900 px-1 py-0.5">
+                  {Object.keys(HAT).map((r) => <option key={r}>{r}</option>)}
+                </select>
+                <button className="rounded bg-sky-600 px-2 py-0.5 hover:bg-sky-500">Join floor</button>
+              </form>}
           <select value={preset} aria-label="Camera preset" onChange={(e) => { const p = e.target.value as CameraPreset; setPreset(p); cameraApi.preset(p); }}
                   className="rounded border border-white/10 bg-slate-900 px-1.5 py-0.5 text-xs">
             {Object.entries(CAMERA_PRESETS).map(([id, c]) => <option key={id} value={id}>📷 {c.label}</option>)}
@@ -155,13 +201,20 @@ export default function App() {
             </div>
             {right && <RightPanel sim={sim} tab={tab} setTab={setTab} machine={machine} part={part} explode={explode}
               setExplode={(e) => { setExplode(e); if (machine && mode !== "exploded") setMode("exploded"); }}
-              guides={guides} xray={xray} toggleXray={() => setXray(!xray)} labels={labels} toggleGuides={() => setGuides(!guides)} toggleLabels={() => setLabels(!labels)}
+              guides={guides} xray={xray} toggleXray={() => setXray(!xray)} labels={labels} act={act} me={floor.myName} onRepair={repair}
+              onClaim={toggleClaim} toggleGuides={() => setGuides(!guides)} toggleLabels={() => setLabels(!labels)}
               onIsolate={() => machine && isolate(machine)} onExploded={() => changeMode(mode === "exploded" ? "isolate" : "exploded")}
               onPart={(id) => { setPart(id); setTimeout(() => cameraApi.fit(id, 2.5), 30); }} onLocate={locate} onFramePart={framePart}
               onInject={inject} onClear={clear} animateAssembly={animateAssembly} reset={resetSim} />}
           </aside>
+          {walk && (
+            <div className="pointer-events-none absolute bottom-10 left-1/2 -translate-x-1/2 rounded bg-slate-950/85 px-3 py-1.5 text-xs text-slate-200">
+              {near ? <>At <b>{MACHINE[near].name}</b>{sim.owner[near] ? ` (operated by ${sim.owner[near]})` : " (unclaimed, automatic)"} · <b>E</b> open controls · <b>C</b> {sim.owner[near] === floor.myName ? "release" : "take control"} · click the panel buttons / drag the handwheel</>
+                : <>WASD walk · Shift run · walk up to a machine panel to operate it</>}
+              {floor.denied && <span className="ml-2 text-red-300">⛔ {floor.denied}</span>}
+            </div>)}
           <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded bg-slate-950/70 px-2 py-1 text-[10px] text-slate-400">
-            Click = select · double-click = isolate · Space run/pause · E exploded · X x-ray · I isolate · F locate fault · R reset camera · Esc back
+            P worker mode · Click = select · double-click = isolate · Space run/pause · E exploded · X x-ray · I isolate · F locate fault · R reset camera · Esc back
           </div>
         </main>
       )}

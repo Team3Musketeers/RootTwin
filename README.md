@@ -64,7 +64,7 @@ as one synchronised line:
 - **KPIs**: line status pill (Running / Warning / Fault-Stopped / E-stop), OEE = A × P × Q, parts/h, good parts, pallets.
 - **Live backend**: when the API is reachable, a backend machine that goes down or an AI alarm becomes a fault on the
   mapped component; injecting / clearing a fault in the twin is mirrored on the line (`/command`).
-- Keyboard: `Space` run/pause · `E` exploded · `X` X-ray · `I` isolate · `F` locate fault · `R` reset camera · `Esc` back.
+- Keyboard: `P` worker mode (then WASD, `E` open, `C` take control) · `Space` run/pause · `E` exploded · `X` X-ray · `I` isolate · `F` locate fault · `R` reset camera · `Esc` back.
 
 **CAD-grade visual layer (27/11, v3)** - no box placeholders any more:
 - **Geometry kernel** (`scene3d/cad.ts`): rounded/filleted housings, true **involute helical gears**, finned motors with fan
@@ -87,6 +87,30 @@ as one synchronised line:
 - **Rendering**: HDRI + 4 Lightformer softboxes (highlight streaks on paint and chrome), contact shadows, post-processing
   chain **N8AO (ambient occlusion) → Bloom (threshold 1: only LEDs, lasers, arcs and faults glow) → ACES Filmic tone
   mapping → SMAA**. `HQ` toggle switches reflections/post-processing off on weak GPUs.
+
+**Play as a factory worker - multiplayer (28/11, v4)**. Design notes: [docs/MECHANICAL_RESEARCH.md](docs/MECHANICAL_RESEARCH.md)
+(how the machines are built, how they fail, IEC 60204-1 / ISO 13850 operator panels, LOTO repair workflow).
+- **Join the floor** (name + role, top bar): the role sets your hard-hat colour (yellow operator, blue technician, orange
+  maintenance, white supervisor). Everyone on `/ws/floor` sees the other workers walking, with name, role and machine.
+- **🦺 Worker mode** (`P`): WASD to walk (Shift = run), camera follows, machines block you. `E` opens the nearest
+  machine, `C` takes / releases control of it. One operator per machine (enforced by the server); **unclaimed machines
+  keep running their automatic cycle**, so the line lives with 1 or 10 players.
+- **Physical control station at every machine**: Start (green), Stop (red), Reset (blue), AUTO/MANUAL key switch, latching
+  red E-stop mushroom on a yellow plate, pilot lamp, and a **handwheel you drag to turn** the main setpoint (spindle rpm,
+  belt speed, tool speed...). In worker mode you must stand at the panel. Anyone may hit an E-stop or repair a part.
+- **Mistakes have consequences**: a setpoint held above 90 % of its range for 4 s damages the matching component
+  (overspeed → spindle bearing, overpressure → seal, overcurrent → motor...). It turns **red**, and a critical
+  operator-caused fault **trips the line interlock: the whole line stops** (natural faults only block up/downstream).
+  Start is refused until someone **repairs** the red part (🔧 in the part card or Diagnostics: LOTO + 4 s), then
+  Start resumes. All actions go through the server and run on every client's simulation, so everyone sees the same
+  fault, stop and repair; late joiners replay the recent action log.
+- **Materials**: procedural normal maps (powder-coat orange peel, sand-cast porosity, rubber), scratch roughness maps,
+  and an oil/dust grime gradient near the floor on painted and cast parts. **Springs (ressorts)**: ISO 10243 die springs
+  on the press, clamp return springs, robot counterbalance coil springs, all explodable.
+- **Real CAD meshes (optional)**: put a `.glb` in `frontend/public/models/` and list it in `manifest.json`
+  (`{"PRS": "/models/press.glb"}`); every mesh named after a part id (e.g. `PRS.brgIn`) replaces that part's
+  procedural geometry and keeps exploded view, X-ray, selection and red faults. No model is shipped: free CC-BY
+  industrial models (Sketchfab, GrabCAD) need per-part splitting and naming in Blender first.
 
 **Component-level backend** (`roottwin/components.py`, `roottwin/faults/components.yaml`): the backend now knows the
 physical components of M1-M6 (24 components, ids = the CAD part ids of the 3D model, checked by `tests/test_components.py`).

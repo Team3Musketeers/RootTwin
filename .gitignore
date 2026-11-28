@@ -31,3 +31,6 @@ Thumbs.db
 # front-end
 frontend/node_modules/
 frontend/dist/
+
+# hand-made / downloaded 3D models for the twin are kept (only trained ML weights are ignored)
+!frontend/public/models/
